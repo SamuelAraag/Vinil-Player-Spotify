@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VinilPlayer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  /* Tema Spotify: verde de marca #1ED760 sobre o quase-preto #121212 */
+  :root {
+    --bg: #121212;
+    --bg-alt: #181818;
+    --text: #ffffff;
+    --muted: #b3b3b3;
+    --faint: #6a6a6a;
+    --primary: #1ed760;
+    --primary-dim: #1db954;
+    --on-primary: #121212;
+    --border: rgba(255,255,255,0.12);
+    --glass: rgba(255,255,255,0.06);
+    --rail: rgba(255,255,255,0.14);
+    --vinyl-body: #0a0a0a;
+    --vinyl-face: #161616;
+    --vinyl-groove: rgba(255,255,255,0.04);
+    --groove-pitch: 6px;   /* passo dos sulcos: menor = mais detalhe */
+    --radius: 12px;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --serif: "Playfair Display", Georgia, "Times New Roman", serif;
+  }
+  [data-theme="light"] {
+    --bg: #ffffff;
+    --bg-alt: #f2f2f2;
+    --text: #121212;
+    --muted: #5c5c5c;
+    --faint: #9a9a9a;
+    --primary: #1db954;
+    --primary-dim: #169c46;
+    --on-primary: #ffffff;
+    --border: rgba(0,0,0,0.14);
+    --glass: rgba(0,0,0,0.05);
+    --rail: rgba(0,0,0,0.16);
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(120% 80% at 50% -18%, rgba(30,215,96,0.10), transparent 60%),
+      radial-gradient(120% 80% at 50% 118%, rgba(30,215,96,0.10), transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  }
+  img { max-width: 100%; }
+  button { font-family: inherit; }
+
+  .wrap {
+    width: 100%;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding-block: 28px 60px;
+    padding-inline: clamp(20px, 6vw, 110px);
+  }
+
+  /* Barra superior */
+  .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font: 500 11px/1 var(--mono);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .top__r { display: inline-flex; align-items: center; gap: 14px; }
+  .top__deco { display: inline-flex; align-items: center; gap: 8px; color: var(--faint); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
+  .fs {
+    display: inline-grid; place-items: center;
+    width: 30px; height: 30px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--glass);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .fs:hover { color: var(--text); border-color: var(--primary); }
+  .fs svg { width: 15px; height: 15px; }
+  .wrap[data-fs="on"] .fs-enter { display: none; }
+  .wrap[data-fs="off"] .fs-exit { display: none; }
+  .wrap[data-fs="on"] {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  /* Palco: capa em destaque, com o disco deitado logo abaixo */
+  .stage {
+    --cover: clamp(280px, 40vw, 600px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: clamp(16px, 3vh, 44px) auto 0;
+  }
+  .sleeve {
+    position: relative;
+    width: var(--cover);
+    aspect-ratio: 1;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    box-shadow: 0 26px 54px -14px rgba(0,0,0,0.68);
+  }
+  /* troca de album: meia-volta num sentido so (0->90 some, -90->0 entra a nova) */
+  .sleeve.flip { animation: coverflip 0.5s cubic-bezier(0.45, 0, 0.55, 1) both; }
+  @keyframes coverflip {
+    0%   { transform: perspective(1000px) rotateY(0deg);   filter: brightness(1); }
+    49%  { transform: perspective(1000px) rotateY(-90deg); filter: brightness(0.62); }
+    50%  { transform: perspective(1000px) rotateY(90deg);  filter: brightness(0.62); }
+    100% { transform: perspective(1000px) rotateY(0deg);   filter: brightness(1); }
+  }
+  @keyframes coverfade { from { opacity: 0.15; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .sleeve.flip { animation: coverfade 0.4s ease both; }
+  }
+  .sleeve__img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .sleeve__ph {
+    position: absolute; inset: 0;
+    display: grid; place-content: center; justify-items: center; gap: 10px;
+    color: var(--muted);
+    font: 400 11px/1 var(--mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .sleeve__ph svg { width: 34px; height: 34px; opacity: 0.7; }
+  .wrap[data-has-cover="true"] .sleeve__ph { display: none; }
+
+  .turntable {
+    position: relative;
+    width: var(--cover);
+    height: calc(var(--cover) * 0.34);
+    margin-top: calc(var(--cover) * 0.04);
+  }
+  .disc3d {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: calc(var(--cover) * 0.98);
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%) perspective(1000px) rotateX(76deg);
+  }
+  .disc3d::after {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(55% 40% at 34% 20%, rgba(255,255,255,0.16), transparent 62%);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .disc {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    background:
+      repeating-radial-gradient(circle at 50% 50%,
+        transparent 0 calc(var(--groove-pitch) - 1px),
+        var(--vinyl-groove) calc(var(--groove-pitch) - 1px) var(--groove-pitch)),
+      radial-gradient(circle at 50% 50%, var(--vinyl-face) 0 20%, var(--vinyl-body) 20% 100%);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  /* sulcos dinamicos: mais grossos em tela pequena, mais finos em tela grande */
+  @media (min-width: 1024px) { :root { --groove-pitch: 5px; } }
+  @media (min-width: 1600px) { :root { --groove-pitch: 4px; } }
+  @media (min-width: 2200px) { :root { --groove-pitch: 3px; } }
+  .disc.is-playing { animation: spin 4s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .disc.is-playing { animation: none; }
+  }
+  .disc__label {
+    position: absolute; inset: 30%;
+    border-radius: 50%;
+    background: var(--primary);
+    overflow: hidden;
+  }
+  .disc__label-img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .disc__hole {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--bg);
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.35);
+    z-index: 1;
+  }
+  .disc-shadow {
+    position: absolute;
+    left: 50%; bottom: -6px;
+    width: calc(var(--cover) * 0.86); height: calc(var(--cover) * 0.06);
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0.5), transparent 70%);
+    filter: blur(7px);
+    z-index: 0;
+  }
+  .tonearm {
+    position: absolute;
+    /* top e a altura da bolinha (o pivo): tudo o mais gira/pende dela */
+    right: 3%; top: 42%;
+    width: calc(var(--cover) * 0.52); height: 3px;
+    font-size: calc(var(--cover) * 0.045);   /* escala das pecas */
+    border-radius: 2px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.55), var(--muted) 45%, rgba(0,0,0,0.4));
+    transform-origin: right center;
+    transform: rotate(2deg);          /* parado: agulha levantada */
+    transition: transform 0.5s ease;
+    z-index: 2;
+  }
+  /* base/pivo do braco */
+  .tonearm__pivot {
+    position: absolute; right: -0.5em; top: 50%;
+    width: 1em; height: 1em; border-radius: 50%;
+    transform: translateY(-50%);
+    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.6), var(--muted) 45%, rgba(0,0,0,0.55));
+    box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  }
+  /* contrapeso atras do pivo */
+  .tonearm__weight {
+    position: absolute; right: -1.5em; top: 50%;
+    width: 0.8em; height: 0.55em; border-radius: 0.15em;
+    transform: translateY(-50%);
+    background: linear-gradient(180deg, rgba(255,255,255,0.4), var(--muted) 50%, rgba(0,0,0,0.45));
+  }
+  /* headshell na ponta, levemente angulado */
+  .tonearm__head {
+    position: absolute; left: -0.9em; top: 50%;
+    width: 0.9em; height: 0.5em; border-radius: 0.12em;
+    transform: translateY(-50%) rotate(20deg);
+    transform-origin: right center;
+    background: linear-gradient(180deg, var(--text), var(--muted));
+  }
+  .tonearm__head::after {   /* agulha */
+    content: "";
+    position: absolute; left: 0.2em; bottom: -0.28em;
+    width: 0.12em; height: 0.32em; border-radius: 0 0 0.06em 0.06em;
+    background: var(--text);
+  }
+  .wrap[data-playing="true"] .tonearm { transform: rotate(-15deg); }  /* tocando: agulha no disco (= 345deg, mas pelo caminho curto) */
+  @media (prefers-reduced-motion: reduce) { .tonearm { transition: none; } }
+
+  /* Faixa atual */
+  .now { text-align: center; margin-top: 8px; }
+  .now__title {
+    margin: 0;
+    font: 500 clamp(24px, 5vw, 34px)/1.15 var(--serif);
+    color: var(--text);
+  }
+  .now__sub {
+    margin: 8px 0 0;
+    font: 500 11px/1 var(--mono);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+    min-height: 11px;
+  }
+
+  /* Controles */
+  .ctrls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 26px;
+    margin-top: 22px;
+  }
+  .ctrl {
+    font: 500 12px/1 var(--mono);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: none;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+  }
+  .ctrl:hover:not(:disabled) { color: var(--text); }
+  .ctrl--main {
+    width: 62px; height: 62px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    letter-spacing: 0;      /* sem tracking: centraliza certo no circulo */
+    text-align: center;
+  }
+  .ctrl--main:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+  .ctrl:disabled { opacity: 0.35; cursor: not-allowed; }
+  .hint {
+    text-align: center;
+    margin: 12px 0 0;
+    min-height: 14px;
+    font: 400 12px/1.3 var(--mono);
+    color: var(--primary);
+  }
+
+  /* Lista de faixas do álbum */
+  .tracks {
+    list-style: none;
+    max-width: 620px;
+    margin: 26px auto 0;
+    padding: 0;
+  }
+  .tracks li { border-top: 1px solid var(--border); }
+  .tracks li:last-child { border-bottom: 1px solid var(--border); }
+  .trk {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 26px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 6px;
+    background: none;
+    border: none;
+    text-align: left;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .trk:hover { background: var(--glass); }
+  .trk__n { font: 400 11px/1 var(--mono); color: var(--muted); }
+  .trk__t { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trk__d { font: 400 11px/1 var(--mono); color: var(--muted); }
+  .trk[aria-current="true"] .trk__t,
+  .trk[aria-current="true"] .trk__n { color: var(--primary); }
+
+  /* Estados nao-felizes */
+  .status {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    margin-top: 30px;
+    text-align: center;
+    font: 400 13px/1.4 var(--mono);
+    color: var(--muted);
+  }
+  .btn {
+    font: 500 12px/1 var(--mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 11px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--glass);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .btn.primary { background: var(--primary); border-color: transparent; color: var(--on-primary); }
+
+  .disconnect {
+    display: block;
+    margin: 44px auto 0;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font: 400 11px/1 var(--mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  button:focus-visible, a:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  /* Visibilidade por estado */
+  .retry, .connect-btn { display: none; }
+  .wrap[data-state="error"] .retry { display: inline-flex; }
+  .wrap[data-state="auth"] .connect-btn { display: inline-flex; }
+  .wrap[data-state="auth"] .status__text { display: none; }
+  .wrap[data-state="auth"] .stage,
+  .wrap[data-state="auth"] .disconnect { display: none; }
+  .wrap[data-state="playing"] .status { display: none; }
+  .wrap:not([data-state="playing"]) .tracks,
+  .wrap:not([data-state="playing"]) .hint { display: none; }
+  .wrap:not([data-state="playing"]):not([data-state="idle"]) .now,
+  .wrap:not([data-state="playing"]):not([data-state="idle"]) .ctrls { display: none; }
+</style>
+</head>
+<body>
+<main class="wrap" data-state="loading" data-playing="false" data-has-cover="false" data-fs="off">
+  <header class="top">
+    <span class="top__l">tocando agora</span>
+    <div class="top__r">
+      <span class="top__deco" aria-hidden="true"><i class="dot"></i>lado a &middot; 33&frac13;</span>
+      <button type="button" class="fs" aria-label="Tela cheia">
+        <svg class="fs-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        <svg class="fs-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3M16 3v3a2 2 0 0 0 2 2h3M8 21v-3a2 2 0 0 0-2-2H3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="stage" aria-hidden="true">
+    <div class="sleeve">
+      <img class="sleeve__img" alt="">
+      <div class="sleeve__ph">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.8"/>
+          <path d="M21 15l-5-5L5 21"/>
+        </svg>
+        <span>capa do &aacute;lbum</span>
+      </div>
+    </div>
+    <div class="turntable">
+      <div class="disc-shadow"></div>
+      <div class="disc3d">
+        <div class="disc">
+          <div class="disc__label">
+            <img class="disc__label-img" alt="" hidden>
+            <i class="disc__hole"></i>
+          </div>
+        </div>
+      </div>
+      <div class="tonearm">
+        <i class="tonearm__weight"></i>
+        <i class="tonearm__pivot"></i>
+        <i class="tonearm__head"></i>
+      </div>
+    </div>
+  </div>
+
+  <section class="now" aria-live="polite">
+    <h1 class="now__title"></h1>
+    <p class="now__sub"></p>
+  </section>
+
+  <div class="ctrls">
+    <button type="button" class="ctrl ctrl--txt" data-act="prev" aria-label="Faixa anterior">ant</button>
+    <button type="button" class="ctrl ctrl--main" data-act="toggle" aria-label="Pausar">pause</button>
+    <button type="button" class="ctrl ctrl--txt" data-act="next" aria-label="Pr&oacute;xima faixa">pr&oacute;x</button>
+  </div>
+  <p class="hint" role="status"></p>
+
+  <ol class="tracks" aria-label="Faixas do &aacute;lbum"></ol>
+
+  <div class="status" aria-live="polite">
+    <span class="status__text">Carregando&hellip;</span>
+    <button type="button" class="btn retry">tentar de novo</button>
+    <button type="button" class="btn primary connect-btn">Conectar ao Spotify</button>
+  </div>
+
+  <button type="button" class="disconnect">desconectar</button>
+</main>
+
+<script>
+const CLIENT_ID = "07f8e60ada964056b6600e6f47c00716";
+const REDIRECT  = location.origin + location.pathname; // cadastre essa URL exata no dashboard
+const SCOPE     = "user-read-currently-playing user-modify-playback-state";
+const SCOPE_V   = "2"; // sobe quando muda o escopo: forca reconexao
+
+const $ = s => document.querySelector(s);
+const el = {
+  wrap:      $(".wrap"),
+  sleeve:    $(".sleeve"),
+  sleeveImg: $(".sleeve__img"),
+  labelImg:  $(".disc__label-img"),
+  disc:      $(".disc"),
+  title:     $(".now__title"),
+  sub:       $(".now__sub"),
+  prev:      $('[data-act="prev"]'),
+  main:      $('[data-act="toggle"]'),
+  next:      $('[data-act="next"]'),
+  hint:      $(".hint"),
+  tracks:    $(".tracks"),
+  statusText:$(".status__text"),
+  retry:     $(".retry"),
+  connectBtn:$(".connect-btn"),
+  disconnect:$(".disconnect"),
+  fs:        $(".fs"),
+};
+
+const fmt = ms => {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+
+function setState(s, msg) {
+  el.wrap.dataset.state = s;
+  const off = s !== "playing";
+  [el.prev, el.main, el.next].forEach(b => (b.disabled = off));
+  if (msg) el.statusText.textContent = msg;
+}
+function forceAuth() {
+  ["access_token", "refresh_token", "expires_at"].forEach(k => localStorage.removeItem(k));
+  setState("auth");
+}
+
+// aplica a capa; com spin=true faz o giro de troca de album
+function applyCover(url, alt, albumId, spin) {
+  const set = () => {
+    if (url) {
+      el.sleeveImg.src = url; el.sleeveImg.alt = alt || "";
+      el.labelImg.src = url; el.labelImg.hidden = false;
+      el.wrap.dataset.hasCover = "true";
+      try { localStorage.setItem("last_cover", JSON.stringify({ url, alt: alt || "", albumId: albumId || "" })); } catch {}
+    } else {
+      el.sleeveImg.removeAttribute("src");
+      el.labelImg.removeAttribute("src"); el.labelImg.hidden = true;
+      el.wrap.dataset.hasCover = "false";
+      try { localStorage.removeItem("last_cover"); } catch {}
+    }
+  };
+  if (!spin) { set(); return; }
+  el.sleeve.classList.remove("flip");
+  void el.sleeve.offsetWidth;                 // reinicia a animacao
+  el.sleeve.classList.add("flip");
+  setTimeout(set, 250);                       // troca no meio da volta
+  setTimeout(() => el.sleeve.classList.remove("flip"), 520);
+}
+
+// ---- PKCE ----
+const rand = n => {
+  const a = new Uint8Array(n); crypto.getRandomValues(a);
+  const cs = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+  return [...a].map(x => cs[x % 64]).join("");
+};
+async function challenge(v) {
+  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v));
+  return btoa(String.fromCharCode(...new Uint8Array(h)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+async function login() {
+  const verifier = rand(64);
+  localStorage.setItem("pkce_verifier", verifier);
+  const p = new URLSearchParams({
+    client_id: CLIENT_ID, response_type: "code", redirect_uri: REDIRECT,
+    scope: SCOPE, code_challenge_method: "S256",
+    code_challenge: await challenge(verifier),
+  });
+  location.href = "https://accounts.spotify.com/authorize?" + p;
+}
+async function tokenRequest(body) {
+  const r = await fetch("https://accounts.spotify.com/api/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(body),
+  });
+  const t = await r.json();
+  if (t.access_token)  localStorage.setItem("access_token", t.access_token);
+  if (t.refresh_token) localStorage.setItem("refresh_token", t.refresh_token);
+  localStorage.setItem("expires_at", Date.now() + (t.expires_in ?? 3600) * 1000);
+}
+const exchange = code => tokenRequest({
+  client_id: CLIENT_ID, grant_type: "authorization_code",
+  code, redirect_uri: REDIRECT,
+  code_verifier: localStorage.getItem("pkce_verifier"),
+});
+const refresh = () => tokenRequest({
+  client_id: CLIENT_ID, grant_type: "refresh_token",
+  refresh_token: localStorage.getItem("refresh_token"),
+});
+
+class ApiError extends Error {
+  constructor(kind, status) { super(kind); this.kind = kind; this.status = status; }
+}
+async function api(url, opts = {}) {
+  const exp = +localStorage.getItem("expires_at");
+  if (!exp || Date.now() > exp - 60000) await refresh();
+  const r = await fetch(url, {
+    ...opts,
+    headers: { Authorization: "Bearer " + localStorage.getItem("access_token"), ...(opts.headers || {}) },
+  });
+  if (r.status === 401) { await refresh(); return api(url, opts); }
+  if (r.status === 204) return null;
+  if (r.status === 404) throw new ApiError("no_device", 404);
+  if (r.status === 403) throw new ApiError("premium", 403);
+  if (r.status === 429) throw new ApiError("rate", 429);
+  if (!r.ok) throw new ApiError("http", r.status);
+  const ct = r.headers.get("content-type") || "";
+  return ct.includes("json") ? r.json() : null;
+}
+
+// ---- estado local ----
+let cur = { isPlaying: false, progressMs: 0, durationMs: 0, sync: 0, trackId: null, albumId: null };
+let album = { id: null, uri: null, tracks: [] };
+// play/pausa otimista: segura o valor ate a API confirmar, sem piscar
+let pending = null; // { value: boolean, until: number }
+let firstTick = true;
+
+function reflectPlaying() {
+  el.disc.classList.toggle("is-playing", cur.isPlaying);
+  el.wrap.dataset.playing = String(cur.isPlaying);
+  el.main.textContent = cur.isPlaying ? "pause" : "play";
+  el.main.setAttribute("aria-label", cur.isPlaying ? "Pausar" : "Tocar");
+}
+
+function renderTracks(items, currentId) {
+  el.tracks.replaceChildren();
+  items.forEach((t, i) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "trk";
+    b.setAttribute("aria-label", "Tocar " + t.name);
+    if (t.id === currentId) b.setAttribute("aria-current", "true");
+    const n = document.createElement("span");
+    n.className = "trk__n";
+    n.textContent = String(i + 1).padStart(2, "0");
+    const tt = document.createElement("span");
+    tt.className = "trk__t";
+    tt.textContent = t.name;
+    const d = document.createElement("span");
+    d.className = "trk__d";
+    d.textContent = fmt(t.duration_ms);
+    b.append(n, tt, d);
+    b.addEventListener("click", () => playAlbumAt(i));
+    li.append(b);
+    el.tracks.append(li);
+  });
+}
+
+async function loadAlbum(id) {
+  if (!id || id === album.id) return album.tracks;
+  try {
+    const a = await api("https://api.spotify.com/v1/albums/" + id + "?limit=50");
+    album = {
+      id,
+      uri: a.uri,
+      tracks: a.tracks.items.map(t => ({ id: t.id, name: t.name, duration_ms: t.duration_ms })),
+    };
+  } catch {
+    album = { id, uri: null, tracks: [] };
+  }
+  return album.tracks;
+}
+
+async function sendControl(fn, okResync = true) {
+  el.hint.textContent = "";
+  try {
+    await fn();
+  } catch (e) {
+    el.hint.textContent =
+      e.kind === "no_device" ? "Abra o Spotify em algum aparelho." :
+      e.kind === "premium"   ? "Controle exige conta Premium." :
+      e.kind === "rate"      ? "Muitos comandos seguidos, espere um instante." :
+                               "Não deu para enviar o comando.";
+    pending = null;            // comando falhou: volta pro que a API disser
+    setTimeout(tick, 200);
+    return;
+  }
+  if (okResync) setTimeout(tick, 350);
+}
+const prev = () => sendControl(() => api("https://api.spotify.com/v1/me/player/previous", { method: "POST" }));
+const next = () => sendControl(() => api("https://api.spotify.com/v1/me/player/next", { method: "POST" }));
+function toggle() {
+  const willPlay = !cur.isPlaying;
+  cur.isPlaying = willPlay;                       // efeito imediato
+  cur.sync = Date.now();
+  pending = { value: willPlay, until: Date.now() + 3500 };
+  reflectPlaying();
+  sendControl(
+    () => api("https://api.spotify.com/v1/me/player/" + (willPlay ? "play" : "pause"), { method: "PUT" }),
+    false,                                        // sem resync agressivo
+  );
+  setTimeout(tick, 900);                          // confere uma vez depois da transicao
+}
+function playAlbumAt(i) {
+  sendControl(() => api("https://api.spotify.com/v1/me/player/play", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ context_uri: album.uri, offset: { position: i } }),
+  }));
+}
+
+async function tick() {
+  let d;
+  try {
+    d = await api("https://api.spotify.com/v1/me/player/currently-playing");
+  } catch (e) {
+    if (e.status === 401 || e.kind === "premium") { forceAuth(); return; }
+    setState("error", "Sem conexão com o Spotify.");
+    return;
+  }
+
+  if (!d || !d.item) {
+    cur.isPlaying = false;
+    el.disc.classList.remove("is-playing");
+    el.wrap.dataset.playing = "false";
+    el.wrap.dataset.hasCover = "false";
+    el.sleeveImg.removeAttribute("src");
+    el.sleeveImg.dataset.src = "";
+    el.sleeveImg.dataset.albumId = "";
+    el.labelImg.hidden = true;
+    el.labelImg.dataset.src = "";
+    if (el.title.textContent !== "Nada tocando agora") el.title.textContent = "Nada tocando agora";
+    el.sub.textContent = "";
+    setState("idle");
+    return;
+  }
+
+  const it = d.item;
+  const names = it.artists ? it.artists.map(a => a.name).join(", ") : (it.show ? it.show.name : "");
+  const albumName = it.album?.name ?? it.show?.name ?? "";
+  const img = it.album?.images?.[0]?.url ?? it.images?.[0]?.url ?? "";
+
+  if (el.sleeveImg.dataset.src !== img) {
+    const albumId = it.album?.id ?? "";
+    // gira so quando muda de album (ja tinha capa e nao e a primeira pintura)
+    const spin = !firstTick && !!el.sleeveImg.dataset.src
+      && !!albumId && el.sleeveImg.dataset.albumId !== albumId;
+    el.sleeveImg.dataset.src = img;
+    el.sleeveImg.dataset.albumId = albumId;
+    el.labelImg.dataset.src = img;
+    applyCover(img, albumName, albumId, spin);
+  }
+  if (el.title.textContent !== it.name) el.title.textContent = it.name;
+  const sub = [names, albumName].filter(Boolean).join(" · ");
+  if (el.sub.textContent !== sub) el.sub.textContent = sub;
+
+  let playing = d.is_playing;
+  if (pending) {
+    if (playing === pending.value) pending = null;           // API confirmou
+    else if (Date.now() < pending.until) playing = pending.value; // ainda propagando: mantem
+    else pending = null;                                     // deu o tempo: aceita a API
+  }
+
+  cur = {
+    isPlaying: playing,
+    progressMs: d.progress_ms ?? 0,
+    durationMs: it.duration_ms ?? 0,
+    sync: Date.now(),
+    trackId: it.id,
+    albumId: it.album?.id ?? null,
+  };
+  reflectPlaying();
+  setState("playing");
+
+  firstTick = false;
+
+  if (cur.albumId) {
+    const tracks = await loadAlbum(cur.albumId);
+    if (tracks.length) renderTracks(tracks, cur.trackId);
+    el.tracks.hidden = !tracks.length;
+  } else {
+    el.tracks.hidden = true;
+  }
+}
+
+// ---- eventos ----
+el.prev.addEventListener("click", prev);
+el.next.addEventListener("click", next);
+el.main.addEventListener("click", toggle);
+el.retry.addEventListener("click", () => { setState("loading", "Carregando…"); tick(); });
+el.connectBtn.addEventListener("click", login);
+el.disconnect.addEventListener("click", forceAuth);
+
+// tela cheia
+function syncFs() {
+  const on = !!document.fullscreenElement;
+  el.wrap.dataset.fs = on ? "on" : "off";
+  el.fs.setAttribute("aria-label", on ? "Sair da tela cheia" : "Tela cheia");
+}
+el.fs.addEventListener("click", () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen?.().catch(() => {});
+});
+document.addEventListener("fullscreenchange", syncFs);
+syncFs();
+
+// atalho: espaco = play/pausa
+document.addEventListener("keydown", e => {
+  if (e.code !== "Space" && e.key !== " ") return;
+  if (e.target.closest("button, a, input, select, textarea")) return; // deixa o foco agir
+  if (el.wrap.dataset.state !== "playing") return;
+  e.preventDefault();
+  toggle();
+});
+
+// ---- boot ----
+if (localStorage.getItem("scope_v") !== SCOPE_V) {
+  ["access_token", "refresh_token", "expires_at"].forEach(k => localStorage.removeItem(k));
+  localStorage.setItem("scope_v", SCOPE_V);
+}
+// capa da ultima sessao: pinta na hora pra nao mostrar o placeholder no reload
+try {
+  const last = JSON.parse(localStorage.getItem("last_cover") || "null");
+  if (last && last.url) {
+    el.sleeveImg.src = last.url;
+    el.sleeveImg.alt = last.alt || "";
+    el.sleeveImg.dataset.src = last.url;
+    el.sleeveImg.dataset.albumId = last.albumId || "";
+    el.labelImg.src = last.url;
+    el.labelImg.hidden = false;
+    el.labelImg.dataset.src = last.url;
+    el.wrap.dataset.hasCover = "true";
+  }
+} catch {}
+(async () => {
+  const code = new URLSearchParams(location.search).get("code");
+  if (code) {
+    try { await exchange(code); } catch {}
+    history.replaceState({}, "", REDIRECT);
+  }
+  if (!localStorage.getItem("access_token")) { setState("auth"); return; }
+  setState("loading", "Carregando…");
+  tick();
+  setInterval(tick, 5000);
+})();
+</script>
+</body>
+</html>
