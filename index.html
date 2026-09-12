@@ -311,8 +311,25 @@
     width: 0.12em; height: 0.32em; border-radius: 0 0 0.06em 0.06em;
     background: var(--text);
   }
-  .wrap[data-playing="true"] .tonearm { transform: rotate(-15deg); }  /* tocando: agulha no disco (= 345deg, mas pelo caminho curto) */
+  /* tocando: agulha no disco. --tonearm-angle desliza aos poucos de fora pra dentro
+     conforme a musica avanca (o braco segue o sulco espiralando ao centro); -15deg
+     e o meio-termo, usado quando a duracao da faixa e desconhecida. */
+  .wrap[data-playing="true"] .tonearm { transform: rotate(var(--tonearm-angle, -15deg)); }
   @media (prefers-reduced-motion: reduce) { .tonearm { transition: none; } }
+
+  /* micro-tremor na ponta (headshell + agulha), nao no braco inteiro: e o cantilever
+     reagindo a modulacao do sulco, nao um balanco mecanico do braco. Paradas irregulares
+     pra nao parecer um sino perfeito. */
+  @keyframes needleJitter {
+    0%   { transform: translateY(-50%) rotate(20deg); }
+    18%  { transform: translateY(calc(-50% - 0.9px)) rotate(21.1deg); }
+    41%  { transform: translateY(calc(-50% + 0.75px)) rotate(18.9deg); }
+    63%  { transform: translateY(-50%) rotate(20.75deg); }
+    82%  { transform: translateY(calc(-50% - 0.6px)) rotate(19.5deg); }
+    100% { transform: translateY(-50%) rotate(20deg); }
+  }
+  .wrap[data-playing="true"] .tonearm__head { animation: needleJitter 0.85s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .wrap[data-playing="true"] .tonearm__head { animation: none; } }
 
   /* Faixa atual */
   .now { text-align: center; margin-top: 8px; }
@@ -893,7 +910,22 @@ function reflectPlaying() {
   el.wrap.dataset.playing = String(cur.isPlaying);
   el.main.textContent = cur.isPlaying ? "pause" : "play";
   el.main.setAttribute("aria-label", cur.isPlaying ? "Pausar" : "Tocar");
+  updateTonearmSweep();
 }
+
+// braco desliza aos poucos da borda pro centro conforme a musica avanca, do jeito
+// que uma agulha real segue o sulco espiralando. So precisa da progressao que ja vem
+// do currently-playing; nao chama a API de novo, so recalcula com o relogio local.
+const TONEARM_OUTER = -9;   // grau no inicio da faixa (borda do disco)
+const TONEARM_INNER = -21;  // grau no fim da faixa (perto do rotulo)
+function updateTonearmSweep() {
+  if (!cur.isPlaying || !cur.durationMs) return;   // duracao desconhecida: fica no meio-termo (-15deg)
+  const elapsed = cur.progressMs + (Date.now() - cur.sync);
+  const frac = Math.min(1, Math.max(0, elapsed / cur.durationMs));
+  const angle = TONEARM_OUTER + (TONEARM_INNER - TONEARM_OUTER) * frac;
+  el.wrap.style.setProperty("--tonearm-angle", angle.toFixed(2) + "deg");
+}
+setInterval(updateTonearmSweep, 1000);
 
 function renderTracks(items, currentId) {
   el.tracks.replaceChildren();
