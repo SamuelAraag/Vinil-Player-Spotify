@@ -100,8 +100,12 @@
     text-transform: uppercase;
     color: var(--muted);
   }
-  .top__l { display: flex; flex-direction: column; gap: 6px; }
-  .top__track {
+  .top__l { display: flex; flex-direction: column; gap: 4px; }
+  /* hierarquia de 3 niveis, do mais pro menos importante: artista (serif, --text),
+     album (mono, --muted, colado no artista) e faixa (mono, --faint, com um
+     espaco extra acima pra se separar do par artista+album por proximidade,
+     nao so por cor/tamanho). */
+  .top__artist {
     max-width: 42vw;
     font: 500 18px/1.15 var(--serif);
     letter-spacing: 0.01em;
@@ -111,18 +115,30 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .top__track:empty { display: none; }
-  .top__artist {
+  .top__artist:empty { display: none; }
+  .top__album {
     max-width: 42vw;
-    font: 500 12px/1 var(--mono);
-    letter-spacing: 0.04em;
+    font: 500 13px/1.2 var(--mono);
+    letter-spacing: 0.02em;
     text-transform: none;
     color: var(--muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .top__artist:empty { display: none; }
+  .top__album:empty { display: none; }
+  .top__track {
+    max-width: 42vw;
+    margin-top: 4px;
+    font: 500 11px/1 var(--mono);
+    letter-spacing: 0.05em;
+    text-transform: none;
+    color: var(--faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .top__track:empty { display: none; }
   .top__r { display: inline-flex; align-items: center; gap: 12px; }
   .fs, .viewtoggle {
     display: inline-grid; place-items: center;
@@ -344,12 +360,22 @@
     font: 500 clamp(24px, 5vw, 34px)/1.15 var(--serif);
     color: var(--text);
   }
-  .now__sub {
-    margin: 8px 0 0;
+  /* mesma hierarquia de 3 niveis do bloco do topo, em escala maior: album colado
+     no titulo (--muted) e faixa mais afastada e discreta (--faint) - a distancia
+     maior sinaliza o degrau de importancia, sem precisar de mais cor ou borda. */
+  .now__album {
+    margin: 6px 0 0;
+    font: 500 clamp(14px, 1.6vw, 17px)/1.3 var(--mono);
+    letter-spacing: 0.03em;
+    color: var(--muted);
+  }
+  .now__album:empty { display: none; }
+  .now__track {
+    margin: 14px 0 0;
     font: 500 11px/1 var(--mono);
     letter-spacing: 0.22em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--faint);
     min-height: 11px;
   }
 
@@ -539,7 +565,8 @@
     text-align: left;
   }
   .wrap[data-view="capa"] .now__title,
-  .wrap[data-view="capa"] .now__sub { text-shadow: 0 2px 14px rgba(0,0,0,0.55); }
+  .wrap[data-view="capa"] .now__album,
+  .wrap[data-view="capa"] .now__track { text-shadow: 0 2px 14px rgba(0,0,0,0.55); }
 
   .wrap[data-view="capa"][data-state="playing"] .artist {
     display: block;
@@ -573,6 +600,7 @@
     <div class="top__l">
       <span>tocando agora</span>
       <span class="top__artist"></span>
+      <span class="top__album"></span>
       <span class="top__track"></span>
     </div>
     <div class="top__r">
@@ -617,7 +645,8 @@
 
     <section class="now" aria-live="polite">
       <h1 class="now__title"></h1>
-      <p class="now__sub"></p>
+      <p class="now__album"></p>
+      <p class="now__track"></p>
     </section>
 
     <div class="artist"><img class="artist__img" alt=""></div>
@@ -656,12 +685,14 @@ const el = {
   disc:      $(".disc"),
   title:     $(".now__title"),
   topTrack:  $(".top__track"),
+  topAlbum:  $(".top__album"),
   topArtist: $(".top__artist"),
   bg:        $(".bg"),
   stage:     $(".stage"),
   artistImg: $(".artist__img"),
   viewtoggle:$(".viewtoggle"),
-  sub:       $(".now__sub"),
+  nowAlbum:  $(".now__album"),
+  nowTrack:  $(".now__track"),
   prev:      $('[data-act="prev"]'),
   main:      $('[data-act="toggle"]'),
   next:      $('[data-act="next"]'),
@@ -699,11 +730,15 @@ function persistSnapshot() {
 }
 function renderSnapshot(s) {
   if (!s || !s.coverUrl) return;
-  if (el.title.textContent !== s.trackName) el.title.textContent = s.trackName || "";
-  if (el.topTrack.textContent !== s.trackName) el.topTrack.textContent = s.trackName || "";
+  // hierarquia de 3 niveis: artista (now__title/top__artist, serif grande) >
+  // album (now__album/top__album, mono medio) > faixa (now__track/top__track,
+  // mono pequeno e mais afastado).
+  if (el.title.textContent !== (s.artistNames || "")) el.title.textContent = s.artistNames || "";
   if (el.topArtist.textContent !== (s.artistNames || "")) el.topArtist.textContent = s.artistNames || "";
-  const sub = [s.artistNames, s.albumName].filter(Boolean).join(" · ");
-  if (el.sub.textContent !== sub) el.sub.textContent = sub;
+  if (el.topAlbum.textContent !== (s.albumName || "")) el.topAlbum.textContent = s.albumName || "";
+  if (el.topTrack.textContent !== s.trackName) el.topTrack.textContent = s.trackName || "";
+  if (el.nowAlbum.textContent !== (s.albumName || "")) el.nowAlbum.textContent = s.albumName || "";
+  if (el.nowTrack.textContent !== (s.trackName || "")) el.nowTrack.textContent = s.trackName || "";
   if (el.sleeveImg.dataset.src !== (s.coverUrl || "")) {
     el.sleeveImg.dataset.src = s.coverUrl || "";
     el.sleeveImg.dataset.albumId = s.albumId || "";
@@ -1138,7 +1173,9 @@ async function tick() {
       el.labelImg.hidden = true;
       el.labelImg.dataset.src = "";
       if (el.title.textContent !== "Nada tocando agora") el.title.textContent = "Nada tocando agora";
-      el.sub.textContent = "";
+      el.nowAlbum.textContent = "";
+      el.nowTrack.textContent = "";
+      el.topAlbum.textContent = "";
       el.topTrack.textContent = "";
       el.topArtist.textContent = "";
       setBg("");
@@ -1163,9 +1200,13 @@ async function tick() {
     el.labelImg.dataset.src = img;
     applyCover(img, albumName, albumId, spin);
   }
-  if (el.title.textContent !== it.name) el.title.textContent = it.name;
-  if (el.topTrack.textContent !== it.name) el.topTrack.textContent = it.name;
+  // hierarquia de 3 niveis: artista (now__title/top__artist, serif grande) >
+  // album (now__album/top__album, mono medio) > faixa (now__track/top__track,
+  // mono pequeno e mais afastado).
+  if (el.title.textContent !== names) el.title.textContent = names;
   if (el.topArtist.textContent !== names) el.topArtist.textContent = names;
+  if (el.topAlbum.textContent !== albumName) el.topAlbum.textContent = albumName;
+  if (el.topTrack.textContent !== it.name) el.topTrack.textContent = it.name;
   setBg(img);
   const artistId = it.artists?.[0]?.id || "";
   if (artistId) {
@@ -1176,8 +1217,8 @@ async function tick() {
   } else {
     setArtistPhoto("");
   }
-  const sub = [names, albumName].filter(Boolean).join(" · ");
-  if (el.sub.textContent !== sub) el.sub.textContent = sub;
+  if (el.nowAlbum.textContent !== albumName) el.nowAlbum.textContent = albumName;
+  if (el.nowTrack.textContent !== it.name) el.nowTrack.textContent = it.name;
 
   let playing = d.is_playing;
   if (pending) {
