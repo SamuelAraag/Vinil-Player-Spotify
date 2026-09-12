@@ -106,8 +106,8 @@
      espaco extra acima pra se separar do par artista+album por proximidade,
      nao so por cor/tamanho). */
   .top__artist {
-    max-width: 42vw;
-    font: 500 18px/1.15 var(--serif);
+    max-width: 46vw;
+    font: 500 24px/1.15 var(--serif);
     letter-spacing: 0.01em;
     text-transform: none;
     color: var(--text);
@@ -117,8 +117,8 @@
   }
   .top__artist:empty { display: none; }
   .top__album {
-    max-width: 42vw;
-    font: 500 13px/1.2 var(--mono);
+    max-width: 46vw;
+    font: 500 16px/1.2 var(--mono);
     letter-spacing: 0.02em;
     text-transform: none;
     color: var(--muted);
@@ -128,9 +128,9 @@
   }
   .top__album:empty { display: none; }
   .top__track {
-    max-width: 42vw;
+    max-width: 46vw;
     margin-top: 4px;
-    font: 500 11px/1 var(--mono);
+    font: 500 13px/1 var(--mono);
     letter-spacing: 0.05em;
     text-transform: none;
     color: var(--faint);
@@ -353,30 +353,14 @@
   .wrap[data-playing="true"] .tonearm__head { animation: needleJitter 0.85s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce) { .wrap[data-playing="true"] .tonearm__head { animation: none; } }
 
-  /* Faixa atual */
+  /* Faixa atual: logo abaixo do vinil, o destaque e so a musica - artista e
+     album ja aparecem no bloco do topo, nao precisam se repetir aqui. */
   .now { text-align: center; margin-top: 8px; }
   .now__title {
     margin: 0;
     font: 500 clamp(24px, 5vw, 34px)/1.15 var(--serif);
     color: var(--text);
-  }
-  /* mesma hierarquia de 3 niveis do bloco do topo, em escala maior: album colado
-     no titulo (--muted) e faixa mais afastada e discreta (--faint) - a distancia
-     maior sinaliza o degrau de importancia, sem precisar de mais cor ou borda. */
-  .now__album {
-    margin: 6px 0 0;
-    font: 500 clamp(14px, 1.6vw, 17px)/1.3 var(--mono);
-    letter-spacing: 0.03em;
-    color: var(--muted);
-  }
-  .now__album:empty { display: none; }
-  .now__track {
-    margin: 14px 0 0;
-    font: 500 11px/1 var(--mono);
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--faint);
-    min-height: 11px;
+    min-height: calc(1.15 * 24px);
   }
 
   /* Controles */
@@ -564,9 +548,7 @@
     margin: 0;
     text-align: left;
   }
-  .wrap[data-view="capa"] .now__title,
-  .wrap[data-view="capa"] .now__album,
-  .wrap[data-view="capa"] .now__track { text-shadow: 0 2px 14px rgba(0,0,0,0.55); }
+  .wrap[data-view="capa"] .now__title { text-shadow: 0 2px 14px rgba(0,0,0,0.55); }
 
   .wrap[data-view="capa"][data-state="playing"] .artist {
     display: block;
@@ -645,8 +627,6 @@
 
     <section class="now" aria-live="polite">
       <h1 class="now__title"></h1>
-      <p class="now__album"></p>
-      <p class="now__track"></p>
     </section>
 
     <div class="artist"><img class="artist__img" alt=""></div>
@@ -691,8 +671,6 @@ const el = {
   stage:     $(".stage"),
   artistImg: $(".artist__img"),
   viewtoggle:$(".viewtoggle"),
-  nowAlbum:  $(".now__album"),
-  nowTrack:  $(".now__track"),
   prev:      $('[data-act="prev"]'),
   main:      $('[data-act="toggle"]'),
   next:      $('[data-act="next"]'),
@@ -730,15 +708,13 @@ function persistSnapshot() {
 }
 function renderSnapshot(s) {
   if (!s || !s.coverUrl) return;
-  // hierarquia de 3 niveis: artista (now__title/top__artist, serif grande) >
-  // album (now__album/top__album, mono medio) > faixa (now__track/top__track,
-  // mono pequeno e mais afastado).
-  if (el.title.textContent !== (s.artistNames || "")) el.title.textContent = s.artistNames || "";
+  // topo: hierarquia de 3 niveis, artista (serif grande) > album (mono medio) >
+  // faixa (mono pequeno, mais afastado). Embaixo do vinil (now__title), destaque
+  // e so a musica.
+  if (el.title.textContent !== (s.trackName || "")) el.title.textContent = s.trackName || "";
   if (el.topArtist.textContent !== (s.artistNames || "")) el.topArtist.textContent = s.artistNames || "";
   if (el.topAlbum.textContent !== (s.albumName || "")) el.topAlbum.textContent = s.albumName || "";
   if (el.topTrack.textContent !== s.trackName) el.topTrack.textContent = s.trackName || "";
-  if (el.nowAlbum.textContent !== (s.albumName || "")) el.nowAlbum.textContent = s.albumName || "";
-  if (el.nowTrack.textContent !== (s.trackName || "")) el.nowTrack.textContent = s.trackName || "";
   if (el.sleeveImg.dataset.src !== (s.coverUrl || "")) {
     el.sleeveImg.dataset.src = s.coverUrl || "";
     el.sleeveImg.dataset.albumId = s.albumId || "";
@@ -1173,8 +1149,6 @@ async function tick() {
       el.labelImg.hidden = true;
       el.labelImg.dataset.src = "";
       if (el.title.textContent !== "Nada tocando agora") el.title.textContent = "Nada tocando agora";
-      el.nowAlbum.textContent = "";
-      el.nowTrack.textContent = "";
       el.topAlbum.textContent = "";
       el.topTrack.textContent = "";
       el.topArtist.textContent = "";
@@ -1200,10 +1174,10 @@ async function tick() {
     el.labelImg.dataset.src = img;
     applyCover(img, albumName, albumId, spin);
   }
-  // hierarquia de 3 niveis: artista (now__title/top__artist, serif grande) >
-  // album (now__album/top__album, mono medio) > faixa (now__track/top__track,
-  // mono pequeno e mais afastado).
-  if (el.title.textContent !== names) el.title.textContent = names;
+  // topo: hierarquia de 3 niveis, artista (serif grande) > album (mono medio) >
+  // faixa (mono pequeno, mais afastado). Embaixo do vinil (now__title), destaque
+  // e so a musica.
+  if (el.title.textContent !== it.name) el.title.textContent = it.name;
   if (el.topArtist.textContent !== names) el.topArtist.textContent = names;
   if (el.topAlbum.textContent !== albumName) el.topAlbum.textContent = albumName;
   if (el.topTrack.textContent !== it.name) el.topTrack.textContent = it.name;
@@ -1217,8 +1191,6 @@ async function tick() {
   } else {
     setArtistPhoto("");
   }
-  if (el.nowAlbum.textContent !== albumName) el.nowAlbum.textContent = albumName;
-  if (el.nowTrack.textContent !== it.name) el.nowTrack.textContent = it.name;
 
   let playing = d.is_playing;
   if (pending) {
