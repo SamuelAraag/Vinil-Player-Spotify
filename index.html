@@ -107,7 +107,7 @@
      nao so por cor/tamanho). */
   .top__artist {
     max-width: 46vw;
-    font: 500 24px/1.15 var(--serif);
+    font: 500 clamp(22px, 6vw, 39px)/1.15 var(--serif);
     letter-spacing: 0.01em;
     text-transform: none;
     color: var(--text);
@@ -139,6 +139,13 @@
     white-space: nowrap;
   }
   .top__track:empty { display: none; }
+  /* mobile/telas muito pequenas: o cabecalho empilha e centraliza (artista, album,
+     faixa e os icones), em vez de disputar espaco com o lado direito. */
+  @media (max-width: 640px) {
+    .top { flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+    .top__l { align-items: center; }
+    .top__artist, .top__album, .top__track { max-width: 90vw; }
+  }
   .top__r { display: inline-flex; align-items: center; gap: 12px; }
   .fs, .viewtoggle {
     display: inline-grid; place-items: center;
