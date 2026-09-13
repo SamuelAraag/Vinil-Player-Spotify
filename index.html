@@ -86,12 +86,23 @@
     width: 100%;
     max-width: 1600px;
     margin: 0 auto;
-    padding-block: 28px 60px;
+    /* .top agora e fixed, fora do fluxo - esse padding no topo so reserva o
+       espaco pra ele nao cobrir o conteudo. Rodape (controles) voltou a ser
+       normal, no fluxo, entao a base do padding e a original. */
+    padding-block: 132px 60px;
     padding-inline: clamp(20px, 6vw, 110px);
   }
 
-  /* Barra superior */
+  /* Barra superior: fixa no topo da tela, no mesmo lugar em qualquer
+     visualizacao (vinil ou capa) e em qualquer estado - nao acompanha o
+     fluxo/altura do conteudo abaixo dela. */
   .top {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 28px clamp(20px, 6vw, 110px) 0;
+    z-index: 5;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -137,6 +148,9 @@
     .top { flex-direction: column; align-items: center; gap: 14px; text-align: center; }
     .top__l { align-items: center; }
     .top__artist, .top__album { max-width: 90vw; }
+    /* cabecalho empilhado fica bem mais alto (texto + icones embaixo) -
+       reserva mais espaco no topo pra nao cobrir o palco. */
+    .wrap { padding-top: 230px; }
   }
   .top__r { display: inline-flex; align-items: center; gap: 12px; }
   .fs, .viewtoggle {
@@ -168,7 +182,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin: clamp(16px, 3vh, 44px) auto 0;
+    margin: 0 auto;
     transition: opacity 0.26s ease, transform 0.26s ease;
   }
   .stage.switching { opacity: 0; transform: translateY(10px) scale(0.99); }
@@ -218,11 +232,10 @@
     position: relative;
     width: var(--cover);
     height: calc(var(--cover) * 0.34);
-    margin-top: calc(var(--cover) * 0.04);
   }
   .disc3d {
     position: absolute;
-    left: 50%; top: 50%;
+    left: 50%; top: 33%;
     width: calc(var(--cover) * 0.98);
     aspect-ratio: 1;
     transform: translate(-50%, -50%) perspective(1000px) rotateX(76deg);
@@ -287,8 +300,11 @@
   }
   .tonearm {
     position: absolute;
-    /* top e a altura da bolinha (o pivo): tudo o mais gira/pende dela */
-    right: 3%; top: 42%;
+    /* top e a altura da bolinha (o pivo): tudo o mais gira/pende dela. Mesmo
+       deslocamento que o .disc3d levou (-17%) pra acompanhar o disco e nao
+       desalinhar (a distancia entre os dois e o que faz a agulha "encostar"
+       na borda certa). */
+    right: 3%; top: 25%;
     width: calc(var(--cover) * 0.52); height: 3px;
     font-size: calc(var(--cover) * 0.045);   /* escala das pecas */
     border-radius: 2px;
