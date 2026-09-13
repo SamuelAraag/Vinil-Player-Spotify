@@ -49,14 +49,19 @@ Referência rápida pra não precisar reler o script inteiro toda vez. Tudo isso
 | Tocando / pausado, progresso, duração | `data-playing`, braço do toca-discos, disco girando | `GET /v1/me/player/currently-playing` | `is_playing`, `progress_ms`, `item.duration_ms` |
 | Foto do artista (modo "capa") | `.artist__img` | `GET /v1/artists/{id}` (id vem de `item.artists[0].id` da currently-playing) | `images[0].url` |
 | Lista de faixas do álbum | `.tracks` | `GET /v1/albums/{id}?limit=50` (id = `item.album.id`) | `tracks.items[].name`, `.duration_ms`, `.id` |
-| Volume do device (pro fade play/pause) | — (`savedVolume` interno) | `GET /v1/me/player` | `device.volume_percent` |
 | Play / pause / próxima / anterior | botões `.ctrl` | `PUT /v1/me/player/play`, `/pause`, `POST /v1/me/player/next`, `/previous` | sem corpo relevante na resposta, erros por status (`404` sem device, `403` sem Premium, `429` rate limit) |
-| Volume (usado no fade) | — | `PUT /v1/me/player/volume?volume_percent=N` | — |
-| Tocar uma faixa específica do álbum | clique num item de `.tracks` | `PUT /v1/me/player/play` com `{ context_uri, offset: { position } }` | — |
+| Tocar uma faixa específica do álbum | clique num item de `.tracks` | `PUT /v1/me/player/play` com `{ context_uri, offset: { position } }`, ou `{ uris: [...] }` se o álbum não tiver carregado | — |
 
-Funções que fazem essas chamadas: `tick()` (currently-playing, roda a cada 5s),
-`artistImage()`, `loadAlbum()`, `getVolume()`/`setVolume()`, `sendControl()` (prev/
-next), `toggle()` (play/pause com fade de volume).
+Funções que fazem essas chamadas: `tick()` (currently-playing; roda a cada 5s **só
+com a aba visível**), `artistImage()`, `loadAlbum()` (só no modo vinil, onde a lista
+aparece), `sendControl()` (prev/next) e `toggle()` (play/pause).
+
+**O player não mexe no volume.** Não há nenhuma chamada a
+`PUT /me/player/volume` nem a `GET /me/player` — o controle de nível fica por conta
+do próprio Spotify. O que dá ritmo ao play/pause é o movimento da agulha: no play
+ela desce e o comando sai quando encosta no sulco (1000ms); no pause o disco para,
+a agulha sobe e só então o comando sai (600ms). Os dois tempos espelham as
+transições do `.tonearm` no CSS, e com `prefers-reduced-motion` não há espera.
 
 ## Limites conhecidos
 
