@@ -86,12 +86,22 @@
     width: 100%;
     max-width: 1600px;
     margin: 0 auto;
-    padding-block: 28px 60px;
+    /* topo e rodape agora sao fixed (.top e .playbar), fora do fluxo - esse
+       padding so reserva o espaco pra eles nao cobrirem o conteudo. */
+    padding-block: 132px 160px;
     padding-inline: clamp(20px, 6vw, 110px);
   }
 
-  /* Barra superior */
+  /* Barra superior: fixa no topo da tela, no mesmo lugar em qualquer
+     visualizacao (vinil ou capa) e em qualquer estado - nao acompanha o
+     fluxo/altura do conteudo abaixo dela. */
   .top {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 28px clamp(20px, 6vw, 110px) 0;
+    z-index: 5;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -137,6 +147,9 @@
     .top { flex-direction: column; align-items: center; gap: 14px; text-align: center; }
     .top__l { align-items: center; }
     .top__artist, .top__album { max-width: 90vw; }
+    /* cabecalho empilhado fica bem mais alto (texto + icones embaixo) -
+       reserva mais espaco no topo pra nao cobrir o palco. */
+    .wrap { padding-top: 230px; }
   }
   .top__r { display: inline-flex; align-items: center; gap: 12px; }
   .fs, .viewtoggle {
@@ -362,13 +375,30 @@
     text-shadow: 0 2px 14px rgba(0,0,0,0.55);   /* sempre sobre o .bg, nos dois modos */
   }
 
-  /* Controles */
+  /* Controles: rodape fixo, sempre no mesmo lugar da tela em qualquer
+     visualizacao (vinil ou capa) - nao acompanha a altura do conteudo acima. */
+  .playbar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 40px 20px clamp(20px, 4vh, 48px);
+    z-index: 5;
+    /* o disco/vinil pode ficar embaixo do rodape fixo em telas mais baixas -
+       o degrade evita que o conteudo por tras brigue com os controles, sem
+       precisar de uma barra solida (mesma linguagem de vinheta que o resto
+       da tela ja usa em .bg). So a faixa de baixo intercepta clique. */
+    background: linear-gradient(180deg, transparent, rgba(0,0,0,0.6) 60%);
+    pointer-events: none;
+  }
+  .playbar > * { pointer-events: auto; }
   .ctrls {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 26px;
-    margin-top: 22px;
   }
   .ctrl {
     font: 500 12px/1 var(--mono);
@@ -396,11 +426,12 @@
   .ctrl:disabled { opacity: 0.35; cursor: not-allowed; }
   .hint {
     text-align: center;
-    margin: 12px 0 0;
+    margin: 0;
     min-height: 14px;
     font: 400 12px/1.3 var(--mono);
     color: var(--primary);
   }
+  .hint:empty { display: none; }
 
   /* Lista de faixas do álbum */
   .tracks {
@@ -559,7 +590,6 @@
     box-shadow: 0 26px 54px -14px rgba(0,0,0,0.6);
     background: var(--panel-fallback);
   }
-  .wrap[data-view="capa"][data-state="playing"] .ctrls { margin-top: 30px; }
 
   @media (max-width: 640px) {
     .wrap[data-view="capa"][data-state="playing"] .stage { grid-template-columns: 1fr; }
@@ -629,12 +659,14 @@
     <div class="artist"><img class="artist__img" alt=""></div>
   </div>
 
-  <div class="ctrls">
-    <button type="button" class="ctrl ctrl--txt" data-tip data-act="prev" aria-label="Faixa anterior">ant</button>
-    <button type="button" class="ctrl ctrl--main" data-tip data-act="toggle" aria-label="Pausar">pause</button>
-    <button type="button" class="ctrl ctrl--txt" data-tip data-act="next" aria-label="Pr&oacute;xima faixa">pr&oacute;x</button>
-  </div>
-  <p class="hint" role="status"></p>
+  <footer class="playbar">
+    <div class="ctrls">
+      <button type="button" class="ctrl ctrl--txt" data-tip="up" data-act="prev" aria-label="Faixa anterior">ant</button>
+      <button type="button" class="ctrl ctrl--main" data-tip="up" data-act="toggle" aria-label="Pausar">pause</button>
+      <button type="button" class="ctrl ctrl--txt" data-tip="up" data-act="next" aria-label="Pr&oacute;xima faixa">pr&oacute;x</button>
+    </div>
+    <p class="hint" role="status"></p>
+  </footer>
 
   <ol class="tracks" aria-label="Faixas do &aacute;lbum"></ol>
 
