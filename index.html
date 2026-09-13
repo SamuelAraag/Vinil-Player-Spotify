@@ -101,32 +101,13 @@
     color: var(--muted);
   }
   .top__l { display: flex; flex-direction: column; gap: 4px; }
-  /* hierarquia de 3 niveis, do mais pro menos importante: artista (serif, --text),
-     album (mono, --muted, colado no artista) e faixa (mono, --faint, com um
-     espaco extra acima pra se separar do par artista+album por proximidade,
-     nao so por cor/tamanho).
-     text-shadow em todo mundo: esse texto fica sempre sobre o .bg (a propria
-     capa do album, borrada) - contraste contra um token solido nao garante nada
-     quando o fundo e uma foto, porque a cor por tras varia pixel a pixel, e pode
-     coincidir com a propria cor do texto (foi o bug relatado: a capa tinha um
-     tom parecido com --faint e a faixa sumiu). Testado ao vivo contra um fundo
-     solido na cor exata do --faint: o blur suave sozinho (0 2px 14px, o mesmo
-     valor que ja existia so pro modo capa) nao segura - a mancha e larga demais
-     pra dar contraste bem colado no traco fino do texto pequeno. Reforcado com
-     um contorno (4 sombras de 1px sem blur ao redor + o blur original por cima)
-     - cria uma borda solida escura direto na borda do glifo, que funciona
-     independente da cor por tras, do mesmo jeito que legenda de video usa
-     contorno pra ficar legivel em qualquer cena. Mesma cor preta que o resto do
-     arquivo ja usa pra sombra (rgba(0,0,0,*)), so mais opaca. */
+  /* so artista e album aqui - a musica mora no titulo abaixo do vinil (now__title).
+     text-shadow: esse texto fica sempre sobre o .bg (a propria capa do album,
+     borrada) - contraste contra um token solido nao garante nada quando o fundo
+     e uma foto, porque a cor por tras varia pixel a pixel. */
   .top__artist,
-  .top__album,
-  .top__track {
-    text-shadow:
-      -1px -1px 1px rgba(0,0,0,0.85),
-      1px -1px 1px rgba(0,0,0,0.85),
-      -1px 1px 1px rgba(0,0,0,0.85),
-      1px 1px 1px rgba(0,0,0,0.85),
-      0 2px 14px rgba(0,0,0,0.55);
+  .top__album {
+    text-shadow: 0 2px 14px rgba(0,0,0,0.55);
   }
   .top__artist {
     max-width: 46vw;
@@ -150,24 +131,12 @@
     white-space: nowrap;
   }
   .top__album:empty { display: none; }
-  .top__track {
-    max-width: 46vw;
-    margin-top: 4px;
-    font: 500 13px/1 var(--mono);
-    letter-spacing: 0.05em;
-    text-transform: none;
-    color: var(--faint);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .top__track:empty { display: none; }
-  /* mobile/telas muito pequenas: o cabecalho empilha e centraliza (artista, album,
-     faixa e os icones), em vez de disputar espaco com o lado direito. */
+  /* mobile/telas muito pequenas: o cabecalho empilha e centraliza (artista e
+     album, e os icones), em vez de disputar espaco com o lado direito. */
   @media (max-width: 640px) {
     .top { flex-direction: column; align-items: center; gap: 14px; text-align: center; }
     .top__l { align-items: center; }
-    .top__artist, .top__album, .top__track { max-width: 90vw; }
+    .top__artist, .top__album { max-width: 90vw; }
   }
   .top__r { display: inline-flex; align-items: center; gap: 12px; }
   .fs, .viewtoggle {
@@ -613,7 +582,6 @@
       <span>tocando agora</span>
       <span class="top__artist"></span>
       <span class="top__album"></span>
-      <span class="top__track"></span>
     </div>
     <div class="top__r">
       <button type="button" class="viewtoggle" data-tip aria-label="Trocar visualiza&ccedil;&atilde;o">
@@ -694,7 +662,6 @@ const el = {
   labelImg:  $(".disc__label-img"),
   disc:      $(".disc"),
   title:     $(".now__title"),
-  topTrack:  $(".top__track"),
   topAlbum:  $(".top__album"),
   topArtist: $(".top__artist"),
   bg:        $(".bg"),
@@ -738,13 +705,11 @@ function persistSnapshot() {
 }
 function renderSnapshot(s) {
   if (!s || !s.coverUrl) return;
-  // topo: hierarquia de 3 niveis, artista (serif grande) > album (mono medio) >
-  // faixa (mono pequeno, mais afastado). Embaixo do vinil (now__title), destaque
-  // e so a musica.
+  // topo: artista (serif grande) > album (mono medio). Embaixo do vinil
+  // (now__title), destaque e so a musica.
   if (el.title.textContent !== (s.trackName || "")) el.title.textContent = s.trackName || "";
   if (el.topArtist.textContent !== (s.artistNames || "")) el.topArtist.textContent = s.artistNames || "";
   if (el.topAlbum.textContent !== (s.albumName || "")) el.topAlbum.textContent = s.albumName || "";
-  if (el.topTrack.textContent !== s.trackName) el.topTrack.textContent = s.trackName || "";
   if (el.sleeveImg.dataset.src !== (s.coverUrl || "")) {
     el.sleeveImg.dataset.src = s.coverUrl || "";
     el.sleeveImg.dataset.albumId = s.albumId || "";
@@ -1180,7 +1145,6 @@ async function tick() {
       el.labelImg.dataset.src = "";
       if (el.title.textContent !== "Nada tocando agora") el.title.textContent = "Nada tocando agora";
       el.topAlbum.textContent = "";
-      el.topTrack.textContent = "";
       el.topArtist.textContent = "";
       setBg("");
       setArtistPhoto("");
@@ -1204,13 +1168,11 @@ async function tick() {
     el.labelImg.dataset.src = img;
     applyCover(img, albumName, albumId, spin);
   }
-  // topo: hierarquia de 3 niveis, artista (serif grande) > album (mono medio) >
-  // faixa (mono pequeno, mais afastado). Embaixo do vinil (now__title), destaque
-  // e so a musica.
+  // topo: artista (serif grande) > album (mono medio). Embaixo do vinil
+  // (now__title), destaque e so a musica.
   if (el.title.textContent !== it.name) el.title.textContent = it.name;
   if (el.topArtist.textContent !== names) el.topArtist.textContent = names;
   if (el.topAlbum.textContent !== albumName) el.topAlbum.textContent = albumName;
-  if (el.topTrack.textContent !== it.name) el.topTrack.textContent = it.name;
   setBg(img);
   const artistId = it.artists?.[0]?.id || "";
   if (artistId) {
