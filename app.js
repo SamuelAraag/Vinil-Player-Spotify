@@ -77,14 +77,6 @@ function renderSnapshot(s) {
     applyCover(s.coverUrl || "", s.albumName || "", s.albumId || "", false);
   }
   setBg(s.coverUrl || "");
-  // No primeiro carregamento quem vale e a foto do Spotify (a do snapshot):
-  // 640x640, do CDN deles, com cache de verdade. As imagens da fanart.tv sao
-  // perfumaria e entram depois, se entrarem - sao 549KB CADA e o servidor delas
-  // nao manda cabecalho de cache nenhum (sem etag, sem last-modified, sem
-  // max-age), entao o navegador rebaixa tudo de novo a cada reload. Abrir a tela
-  // esperando por elas era o que deixava o painel lento.
-  // O `true` pula o pre-carregamento: no boot nao ha transicao a proteger, e a
-  // foto do Spotify normalmente ja esta no cache do navegador.
   if (s.artistPhotoUrl) {
     artistUrl = s.artistPhotoUrl;
     showArtistImage(s.artistPhotoUrl, true);
@@ -103,8 +95,6 @@ function renderSnapshot(s) {
   };
   el.disc.classList.remove("is-playing");
   reflectPlaying();
-  // a tela parada (pausado no celular, ou boot com o cenario salvo) tambem
-  // merece as imagens boas - o snapshot guarda o artista justamente pra isso
   buscarImagensDoArtista(cur.artistId, cur.artistName);
 }
 
@@ -155,14 +145,8 @@ async function artistImage(id) {
   } catch { artistImgCache = { id, url: "" }; }
   return artistImgCache.url;
 }
-// ---- painel do artista: duas camadas com crossfade ----
-// Uma camada esta visivel (.is-on), a outra fica pronta por baixo. Trocar a classe
-// de uma pra outra e a transicao. Sempre pre-carrega antes de trocar, pra nao
-// aparecer meia imagem.
 let artistUrl = "";
 let artistLayer = 0;
-// imediato=true pula o pre-carregamento e pinta ja. Serve pro boot: ali nao ha
-// transicao a proteger, e ver a imagem aparecendo e melhor que ver painel vazio.
 function showArtistImage(url, imediato) {
   if (!url) return;
   const next = el.artistImgs[artistLayer ^ 1];
@@ -177,17 +161,12 @@ function showArtistImage(url, imediato) {
   if (imediato) { aplica(); return; }
   const pre = new Image();
   pre.onload = () => {
-    if (artistUrl !== url) return;              // ja mudou de novo enquanto carregava
+    if (artistUrl !== url) return;
     aplica();
   };
   pre.src = url;
 }
 
-// foto "oficial" do Spotify: entra na hora e e o piso do painel. Se a fanart.tv
-// responder depois, o rodizio assume por cima; se nao responder, fica essa.
-// quem para o rodizio e o chamador (troca de faixa/artista, ou desligar nas
-// configuracoes) - aqui so pinta. Antes esta funcao parava sozinha, e como ela
-// roda num microtask, matava o timer que a troca de faixa tinha acabado de armar.
 function setArtistPhoto(url) {
   if (url === artistUrl) return;
   artistUrl = url;
@@ -199,26 +178,11 @@ function setArtistPhoto(url) {
   showArtistImage(url);
 }
 
-// ---- imagens extras do artista (fanart.tv) ----
-// O Spotify entrega uma foto so, 640x640. A fanart.tv tem varias (1000x1000) e
-// fundos (1920x1080), mas indexa por MusicBrainz ID - que o Spotify nao fornece
-// em lugar nenhum. Entao o caminho e: nome do artista -> MusicBrainz -> mbid ->
-// fanart.tv. Sao dois servicos de terceiros no meio, entao nada disso bloqueia a
-// tela: a foto do Spotify ja esta no ar e so e substituida SE esse caminho der
-// certo. O mbid e as urls ficam num dicionario no localStorage, indexado pelo id
-// do artista no Spotify (estavel, ao contrario do nome), pra segunda vez em
-// diante nao custar requisicao nenhuma.
-// identificador do projeto na fanart.tv. Nao e credencial de ninguem: serve pra
-// eles contabilizarem uso por aplicacao, e por isso mora no cliente mesmo (igual
-// ao CLIENT_ID do Spotify, que o PKCE assume publico). Se precisar trocar, e
-// aqui - e o unico lugar.
 const FANART_PROJETO = "10ecb43d661dad793e6b0fb409dc65b7";
 const FANART_TRIES   = 3;
 const FANART_STORE   = "vp_fanart";
-const FANART_PREF    = "vp_fanart_on";   // liga/desliga o fluxo inteiro
+const FANART_PREF    = "vp_fanart_on";
 
-// desligado por padrao: sao imagens pesadas (~550KB cada, sem cache do servidor
-// deles) vindas de dois servicos de terceiros. E enfeite, entao quem quiser liga.
 let fanartAtivo = localStorage.getItem(FANART_PREF) === "true";
 
 let fanartCache = {};
@@ -228,8 +192,6 @@ function saveFanart(artistId, dados) {
   try { localStorage.setItem(FANART_STORE, JSON.stringify(fanartCache)); } catch {}
 }
 
-// nome -> mbid. null quando o MusicBrainz respondeu e nao achou ninguem (isso e
-// resposta, nao falha: fica gravado pra nao perguntar de novo).
 async function mbidDoArtista(artistId, nome) {
   const hit = fanartCache[artistId];
   if (hit && "mbid" in hit) return hit.mbid;
@@ -250,28 +212,22 @@ async function imagensDaFanart(artistId, nome) {
   if (!mbid) return [];
   const params = new URLSearchParams({ api_key: FANART_PROJETO });
   const r = await fetch(`https://webservice.fanart.tv/v3/music/${mbid}?${params}`);
-  if (r.status === 404) { saveFanart(artistId, { urls: [] }); return []; }  // sem ficha la
+  if (r.status === 404) { saveFanart(artistId, { urls: [] }); return []; }
   if (!r.ok) throw new Error("fanart " + r.status);
   const d = await r.json();
-  // retratos primeiro (quadrados, enquadram melhor no painel alto), fundos depois
   const urls = [...(d.artistthumb || []), ...(d.artistbackground || [])].map(x => x.url);
   saveFanart(artistId, { urls });
   return urls;
 }
 
-// Orquestracao: roda SO no modo capa, tenta no maximo FANART_TRIES vezes (uma por
-// tick) e entao desiste. So voltar a tentar quando mudar de artista ou de album.
 let fanartRun = { chave: null, tentativas: 0, encerrado: false };
 let fanartOcupado = false;
 
 async function buscarImagensDoArtista(artistId, nome) {
-  if (!fanartAtivo) return;                      // desligado nas configuracoes
-  if (el.wrap.dataset.view !== "capa") return;   // no modo vinil o painel nem aparece
+  if (!fanartAtivo) return;
+  if (el.wrap.dataset.view !== "capa") return;
   if (!artistId || !nome) return;
 
-  // ja resolvido alguma vez: rearma direto do dicionario, sem rede e sem gastar
-  // tentativa. O slidesFor evita reiniciar um rodizio que ja esta rodando - se
-  // reiniciasse, o tick de 5s zeraria o intervalo antes dele chegar nos 15s.
   const emCache = fanartCache[artistId];
   if (emCache?.urls) {
     if (emCache.urls.length && slidesFor !== artistId) startArtistSlides(emCache.urls, artistId);
@@ -279,7 +235,7 @@ async function buscarImagensDoArtista(artistId, nome) {
   }
 
   const chave = artistId + "|" + (cur.albumId || "");
-  if (chave !== fanartRun.chave) {               // mudou artista/album: recomeca do zero
+  if (chave !== fanartRun.chave) {
     fanartRun = { chave, tentativas: 0, encerrado: false };
   }
   if (fanartRun.encerrado || fanartOcupado) return;
@@ -288,28 +244,20 @@ async function buscarImagensDoArtista(artistId, nome) {
   fanartOcupado = true;
   try {
     const urls = await imagensDaFanart(artistId, nome);
-    fanartRun.encerrado = true;                  // respondeu: com ou sem imagens, acabou
+    fanartRun.encerrado = true;
     if (urls.length) startArtistSlides(urls, artistId);
   } catch {
-    // falhou (rede, 503 do MusicBrainz, rate limit): o proximo tick tenta de novo
     if (fanartRun.tentativas >= FANART_TRIES) fanartRun.encerrado = true;
   } finally {
     fanartOcupado = false;
   }
 }
 
-// ---- rodizio das imagens da fanart.tv ----
-// quanto cada imagem fica em tela. Ritmo de galeria, nao de slideshow: o player
-// fica aberto enquanto o album toca, entao imagem trocando rapido vira agitacao
-// no canto do olho. 15s da uma media de 4 a 5 imagens por faixa.
 const SLIDE_MS = 15000;
 const SLIDE_POS = "vp_slide_pos";
 let slides = [], slideTimer = null;
-let slidesFor = null;   // de qual artista sao as imagens que estao no ar
+let slidesFor = null;
 
-// A posicao do rodizio anda sempre pra frente e sobrevive ao reload. Sem isso,
-// recarregar a tela recomecava na primeira imagem com o intervalo inteiro pela
-// frente - quem atualiza com alguma frequencia nunca chegava a ver as outras.
 let slidePos = Number(localStorage.getItem(SLIDE_POS)) || 0;
 
 function proximoSlide() {
@@ -331,19 +279,12 @@ function startArtistSlides(urls, artistId) {
   slides = urls;
   slidesFor = artistId;
 
-  // A PRIMEIRA imagem da fanart tambem espera o intervalo. Antes ela entrava
-  // assim que a busca respondia - e como as urls ficam no vp_fanart, responder
-  // e quase instantaneo, entao a foto do Spotify mal aparecia antes de ser
-  // trocada. Quem abre a tela e a foto do Spotify; a fanart e o que vem depois.
   const troca = () => {
     if (el.wrap.dataset.view !== "capa" || el.wrap.dataset.state !== "playing") return;
-    artistUrl = proximoSlide();     // ja entra na proxima posicao: aberturas
-    showArtistImage(artistUrl);     // seguidas mostram imagens diferentes
+    artistUrl = proximoSlide();
+    showArtistImage(artistUrl);
   };
 
-  // uma imagem so nao e rodizio, e com movimento reduzido tambem nao roda: nos
-  // dois casos ela entra uma vez, no mesmo tempo, e fica. (clearInterval serve
-  // pros dois tipos de timer, entao o stopArtistSlides nao muda.)
   if (urls.length < 2 || matchMedia("(prefers-reduced-motion: reduce)").matches) {
     slideTimer = setTimeout(troca, SLIDE_MS);
     return;
@@ -740,23 +681,14 @@ async function tickOnce() {
   if (el.topAlbum.textContent !== albumText) el.topAlbum.textContent = albumText;
   setBg(img);
   const artistId = it.artists?.[0]?.id || "";
-  // o nome do artista PRINCIPAL, nao a lista junta: quem vai pro MusicBrainz e
-  // esse. "Kendrick Lamar, Drake" ate acha o Kendrick, mas por sorte do score.
   const artistName = it.artists?.[0]?.name || "";
-  // Trocar de faixa reinicia o painel do zero, como na abertura da tela: volta
-  // pra foto oficial do Spotify e o ciclo da fanart recomeca esperando o
-  // intervalo. Trocar de artista, idem.
   const trocouFaixa = cur.trackId && cur.trackId !== it.id;
   if (trocouFaixa || (slidesFor && slidesFor !== artistId)) {
     stopArtistSlides();
-    artistUrl = "";                 // obriga a repintar a foto do Spotify abaixo
+    artistUrl = "";
   }
   if (artistId) {
     artistImage(artistId).then(url => {
-      // pinta so quando ninguem pintou desde o ultimo reset (artistUrl vazio).
-      // A guarda antiga era !slides.length, mas o rodizio e REARMADO antes deste
-      // microtask rodar - entao slides ja estava cheio e a foto do Spotify nunca
-      // voltava na troca de faixa, que e justamente quando ela tem que voltar.
       if (!artistUrl) setArtistPhoto(url);
       if (snapshot && snapshot.trackId === it.id) { snapshot.artistPhotoUrl = url; persistSnapshot(); }
     });
@@ -784,8 +716,6 @@ async function tickOnce() {
   reflectPlaying();
   setState("playing");
 
-  // depois do cur (a chave do fluxo usa o album). Nao tem await: se demorar ou
-  // falhar, a tela ja esta pintada com a foto do Spotify.
   buscarImagensDoArtista(artistId, artistName);
 
   // guarda o cenario completo pro reload / pausa no celular
@@ -842,9 +772,6 @@ setView(localStorage.getItem("view_mode") || "vinil");
 el.viewtoggle.addEventListener("click", () => {
   const v = el.wrap.dataset.view === "capa" ? "vinil" : "capa";
   setView(v, true);
-  // cada modo tem um pedido proprio que so faz sentido nele: vinil precisa da
-  // lista de faixas, capa precisa das imagens do artista. Dispara na hora em vez
-  // de esperar o proximo tick.
   if (v === "vinil") tick();
   else buscarImagensDoArtista(cur.artistId, cur.artistName);
 });
@@ -862,25 +789,20 @@ el.fs.addEventListener("click", () => {
 document.addEventListener("fullscreenchange", syncFs);
 syncFs();
 
-// ---- configuracoes ----
-// O check e so intencao ate salvar: abrir sempre parte do que esta valendo, e
-// cancelar (ou Esc, que fecha com returnValue vazio) descarta sem aplicar.
 el.cfg.addEventListener("click", () => {
   el.cfgFanart.checked = fanartAtivo;
   el.cfgModal.showModal();
 });
 
 el.cfgModal.addEventListener("close", () => {
-  if (el.cfgModal.returnValue !== "salvar") return;      // cancelar/Esc: nada muda
-  if (el.cfgFanart.checked === fanartAtivo) return;      // salvou sem ter mexido
+  if (el.cfgModal.returnValue !== "salvar") return;
+  if (el.cfgFanart.checked === fanartAtivo) return;
   fanartAtivo = el.cfgFanart.checked;
-  try { localStorage.setItem(FANART_PREF, fanartAtivo); } catch {}   // vira "true"/"false"
+  try { localStorage.setItem(FANART_PREF, fanartAtivo); } catch {}
   if (fanartAtivo) {
-    // liga: busca ja, sem esperar o proximo tick
     fanartRun = { chave: null, tentativas: 0, encerrado: false };
     buscarImagensDoArtista(cur.artistId, cur.artistName);
   } else {
-    // desliga: para o rodizio e devolve o painel pra foto do Spotify
     stopArtistSlides();
     artistUrl = "";
     setArtistPhoto(artistImgCache.url || "");

@@ -71,8 +71,6 @@
       <h1 class="now__title"></h1>
     </section>
 
-    <!-- duas camadas empilhadas: uma aparece, a outra entra por baixo e assume no
-         crossfade. Serve pra foto unica do Spotify e pro rodizio da fanart.tv. -->
     <div class="artist">
       <img class="artist__img is-on" alt="">
       <img class="artist__img" alt="">
@@ -102,8 +100,6 @@
      rel="noopener noreferrer">api app spotify</a>
 </main>
 
-<!-- <dialog> nativo: ja vem com Esc pra fechar, foco preso dentro e backdrop
-     proprio, entao nao ha modal artesanal aqui. -->
 <dialog class="cfg-modal" aria-labelledby="cfg-titulo">
   <h2 class="cfg-modal__titulo" id="cfg-titulo">configura&ccedil;&otilde;es</h2>
 
@@ -117,8 +113,6 @@
     </span>
   </label>
 
-  <!-- form method="dialog" fecha o modal sozinho e guarda em returnValue qual
-       botao foi usado. Esc fecha com returnValue vazio, ou seja: cancelar. -->
   <form method="dialog" class="cfg-acoes">
     <button value="cancelar" class="btn">cancelar</button>
     <button value="salvar" class="btn primary">salvar</button>
