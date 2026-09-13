@@ -185,9 +185,11 @@ function showArtistImage(url, imediato) {
 
 // foto "oficial" do Spotify: entra na hora e e o piso do painel. Se a fanart.tv
 // responder depois, o rodizio assume por cima; se nao responder, fica essa.
+// quem para o rodizio e o chamador (troca de faixa/artista, ou desligar nas
+// configuracoes) - aqui so pinta. Antes esta funcao parava sozinha, e como ela
+// roda num microtask, matava o timer que a troca de faixa tinha acabado de armar.
 function setArtistPhoto(url) {
   if (url === artistUrl) return;
-  stopArtistSlides();
   artistUrl = url;
   if (!url) {
     el.wrap.dataset.hasArtist = "false";
@@ -266,6 +268,15 @@ async function buscarImagensDoArtista(artistId, nome) {
   if (!fanartAtivo) return;                      // desligado nas configuracoes
   if (el.wrap.dataset.view !== "capa") return;   // no modo vinil o painel nem aparece
   if (!artistId || !nome) return;
+
+  // ja resolvido alguma vez: rearma direto do dicionario, sem rede e sem gastar
+  // tentativa. O slidesFor evita reiniciar um rodizio que ja esta rodando - se
+  // reiniciasse, o tick de 5s zeraria o intervalo antes dele chegar nos 15s.
+  const emCache = fanartCache[artistId];
+  if (emCache?.urls) {
+    if (emCache.urls.length && slidesFor !== artistId) startArtistSlides(emCache.urls, artistId);
+    return;
+  }
 
   const chave = artistId + "|" + (cur.albumId || "");
   if (chave !== fanartRun.chave) {               // mudou artista/album: recomeca do zero
@@ -732,12 +743,21 @@ async function tickOnce() {
   // o nome do artista PRINCIPAL, nao a lista junta: quem vai pro MusicBrainz e
   // esse. "Kendrick Lamar, Drake" ate acha o Kendrick, mas por sorte do score.
   const artistName = it.artists?.[0]?.name || "";
-  if (slidesFor && slidesFor !== artistId) stopArtistSlides();   // trocou de artista
+  // Trocar de faixa reinicia o painel do zero, como na abertura da tela: volta
+  // pra foto oficial do Spotify e o ciclo da fanart recomeca esperando o
+  // intervalo. Trocar de artista, idem.
+  const trocouFaixa = cur.trackId && cur.trackId !== it.id;
+  if (trocouFaixa || (slidesFor && slidesFor !== artistId)) {
+    stopArtistSlides();
+    artistUrl = "";                 // obriga a repintar a foto do Spotify abaixo
+  }
   if (artistId) {
     artistImage(artistId).then(url => {
-      // se o rodizio da fanart ja assumiu esse artista, ele manda; a foto do
-      // Spotify so pinta enquanto ele nao chegou (ou se nunca chegar)
-      if (!slides.length) setArtistPhoto(url);
+      // pinta so quando ninguem pintou desde o ultimo reset (artistUrl vazio).
+      // A guarda antiga era !slides.length, mas o rodizio e REARMADO antes deste
+      // microtask rodar - entao slides ja estava cheio e a foto do Spotify nunca
+      // voltava na troca de faixa, que e justamente quando ela tem que voltar.
+      if (!artistUrl) setArtistPhoto(url);
       if (snapshot && snapshot.trackId === it.id) { snapshot.artistPhotoUrl = url; persistSnapshot(); }
     });
   } else {
