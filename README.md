@@ -122,6 +122,10 @@ que o Spotify não fornece em lugar nenhum. Daí o caminho em três passos:
 nome do artista principal  ->  MusicBrainz  ->  mbid  ->  fanart.tv  ->  urls
 ```
 
+**O fluxo vem desligado**, e é ligado no botão de configurações (ícone à direita do
+cabeçalho) → "Ativar fanart com imagens do artista". A escolha fica no `localStorage`
+(`vp_fanart_on`). Desligado, nenhuma das duas APIs é chamada.
+
 Regras do fluxo (tudo em `app.js`, seção "imagens extras do artista"):
 
 - **A foto do Spotify entra primeiro e sozinha.** Ela é o piso: aparece na hora e só é

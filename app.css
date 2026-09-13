@@ -124,7 +124,7 @@ button { font-family: inherit; }
   .wrap { padding-top: 230px; }
 }
 .top__r { display: inline-flex; align-items: center; gap: 12px; }
-.fs, .viewtoggle {
+.fs, .viewtoggle, .cfg {
   display: inline-grid; place-items: center;
   width: 30px; height: 30px;
   padding: 0;
@@ -134,8 +134,8 @@ button { font-family: inherit; }
   color: var(--muted);
   cursor: pointer;
 }
-.fs:hover, .viewtoggle:hover { color: var(--text); border-color: var(--primary); }
-.fs svg, .viewtoggle svg { width: 15px; height: 15px; }
+.fs:hover, .viewtoggle:hover, .cfg:hover { color: var(--text); border-color: var(--primary); }
+.fs svg, .viewtoggle svg, .cfg svg { width: 15px; height: 15px; }
 .wrap[data-fs="on"] .fs-enter { display: none; }
 .wrap[data-fs="off"] .fs-exit { display: none; }
 .wrap[data-view="vinil"] .viewtoggle .vt-vinil { display: none; }
@@ -586,3 +586,44 @@ button:focus-visible, a:focus-visible {
     grid-column: 1; grid-row: auto; text-align: center;
   }
 }
+
+/* Modal de configuracoes. E um <dialog> nativo: Esc, foco preso e backdrop ja
+   vem de graca do navegador, entao aqui so tem aparencia. */
+.cfg-modal {
+  width: min(420px, calc(100vw - 40px));
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-alt);
+  color: var(--text);
+  box-shadow: 0 30px 60px -20px rgba(0,0,0,0.7);
+}
+.cfg-modal::backdrop { background: rgba(0,0,0,0.6); }
+.cfg-modal__titulo {
+  margin: 0 0 20px;
+  font: 500 11px/1 var(--mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cfg-opt {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  cursor: pointer;
+  font-size: 14px;
+}
+.cfg-opt input {
+  width: 16px; height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex: none;
+}
+.cfg-opt small {
+  display: block;
+  margin-top: 6px;
+  font: 400 12px/1.5 var(--mono);
+  color: var(--muted);
+}
+.cfg-fechar { display: block; margin: 24px 0 0 auto; }

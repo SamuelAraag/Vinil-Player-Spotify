@@ -27,6 +27,10 @@ const el = {
   connectBtn:$(".connect-btn"),
   disconnect:$(".disconnect"),
   fs:        $(".fs"),
+  cfg:       $(".cfg"),
+  cfgModal:  $(".cfg-modal"),
+  cfgFanart: $(".cfg-fanart"),
+  cfgFechar: $(".cfg-fechar"),
 };
 
 const fmt = ms => {
@@ -210,6 +214,11 @@ function setArtistPhoto(url) {
 const FANART_PROJETO = "10ecb43d661dad793e6b0fb409dc65b7";
 const FANART_TRIES   = 3;
 const FANART_STORE   = "vp_fanart";
+const FANART_PREF    = "vp_fanart_on";   // liga/desliga o fluxo inteiro
+
+// desligado por padrao: sao imagens pesadas (~550KB cada, sem cache do servidor
+// deles) vindas de dois servicos de terceiros. E enfeite, entao quem quiser liga.
+let fanartAtivo = localStorage.getItem(FANART_PREF) === "1";
 
 let fanartCache = {};
 try { fanartCache = JSON.parse(localStorage.getItem(FANART_STORE) || "{}"); } catch {}
@@ -255,6 +264,7 @@ let fanartRun = { chave: null, tentativas: 0, encerrado: false };
 let fanartOcupado = false;
 
 async function buscarImagensDoArtista(artistId, nome) {
+  if (!fanartAtivo) return;                      // desligado nas configuracoes
   if (el.wrap.dataset.view !== "capa") return;   // no modo vinil o painel nem aparece
   if (!artistId || !nome) return;
 
@@ -812,6 +822,26 @@ el.fs.addEventListener("click", () => {
 });
 document.addEventListener("fullscreenchange", syncFs);
 syncFs();
+
+// ---- configuracoes ----
+el.cfgFanart.checked = fanartAtivo;
+el.cfg.addEventListener("click", () => el.cfgModal.showModal());
+el.cfgFechar.addEventListener("click", () => el.cfgModal.close());
+
+el.cfgFanart.addEventListener("change", () => {
+  fanartAtivo = el.cfgFanart.checked;
+  try { localStorage.setItem(FANART_PREF, fanartAtivo ? "1" : "0"); } catch {}
+  if (fanartAtivo) {
+    // liga: busca ja, sem esperar o proximo tick
+    fanartRun = { chave: null, tentativas: 0, encerrado: false };
+    buscarImagensDoArtista(cur.artistId, cur.artistName);
+  } else {
+    // desliga: para o rodizio e devolve o painel pra foto do Spotify
+    stopArtistSlides();
+    artistUrl = "";
+    setArtistPhoto(artistImgCache.url || "");
+  }
+});
 
 // atalho: espaco = play/pausa
 document.addEventListener("keydown", e => {
