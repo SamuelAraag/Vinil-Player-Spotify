@@ -37,10 +37,46 @@ Spotify Developer Dashboard é exato):
 python3 -m http.server 8080
 ```
 
-Abre em `http://127.0.0.1:8080/`. App Spotify: **VinilPlayer**, fluxo PKCE (sem client
-secret, tudo no front). Escopos: `user-read-currently-playing user-read-playback-state
-user-modify-playback-state` (o segundo e o terceiro exigem conta Premium + um device
-ativo pra funcionar o controle).
+Abre em `http://127.0.0.1:8080/`.
+
+## O app no Spotify (onde mexer nas configurações)
+
+Dashboard: **https://developer.spotify.com/dashboard** — logar com a conta dona do app.
+Tem um atalho discreto pra cá no rodapé da própria tela do player ("api app spotify").
+
+| | |
+|---|---|
+| Nome do app | **VinilPlayer** |
+| Client ID | `07f8e60ada964056b6600e6f47c00716` — é público, fica no `app.js` |
+| Client secret | não tem: o fluxo é **PKCE**, 100% no front |
+| Escopos | `user-read-currently-playing`, `user-read-playback-state`, `user-modify-playback-state` |
+| Modo | **dev** — só as contas listadas em *User Management* conseguem usar |
+
+### Cadastrar uma rota nova (Redirect URI)
+
+O `app.js` monta o redirect como `location.origin + location.pathname`. Ou seja: **a URL
+exata de onde a página é servida**, com a barra final. Toda vez que isso mudar — outra
+porta, outra pasta, um deploy — a URL nova precisa ser cadastrada no dashboard, em
+*Edit Settings → Redirect URIs*, senão o login falha com `redirect_uri: Not matching
+configuration`.
+
+Exemplos do que conta como URL diferente e precisa de cadastro próprio:
+
+```
+http://127.0.0.1:8080/                      <- servindo de dentro da pasta
+http://127.0.0.1:8080/vinil-player-spotify/ <- servindo da pasta de cima
+https://meudominio.com/player/              <- deploy
+```
+
+### Mudou escopo? Suba o SCOPE_V
+
+A constante `SCOPE_V` no topo do `app.js` existe pra isso: quando a lista de escopos
+muda, subir o número faz o boot limpar os tokens e forçar todo mundo a reconectar. Sem
+isso, quem já estava logado continua com um token do escopo antigo e as chamadas novas
+falham com 401 — foi exatamente o bug de "desloga sozinho segundos depois de logar".
+
+Nota: `user-read-playback-state` está pedido mas **não é mais usado** — era só do
+controle de volume, que saiu. Tirar da lista exige subir o `SCOPE_V`.
 
 ## Mapa de dados: de onde vem cada informação
 

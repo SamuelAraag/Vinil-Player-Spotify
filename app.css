@@ -455,6 +455,23 @@ button { font-family: inherit; }
   cursor: pointer;
 }
 
+/* atalho pro dashboard do app no Spotify. E ferramenta de manutencao, nao parte
+   do player: fica no rodape, menor e mais apagado que o "desconectar", e so
+   ganha contraste no hover/foco. */
+.apilink {
+  display: block;
+  width: fit-content;
+  margin: 18px auto 0;
+  color: var(--muted);
+  opacity: 0.45;
+  font: 400 10px/1 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+.apilink:hover, .apilink:focus-visible { opacity: 1; text-decoration: underline; }
+
 button:focus-visible, a:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
