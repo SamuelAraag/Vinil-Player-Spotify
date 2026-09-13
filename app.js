@@ -15,7 +15,7 @@ const el = {
   topArtist: $(".top__artist"),
   bg:        $(".bg"),
   stage:     $(".stage"),
-  artistImg: $(".artist__img"),
+  artistImgs: [...document.querySelectorAll(".artist__img")],
   viewtoggle:$(".viewtoggle"),
   prev:      $('[data-act="prev"]'),
   main:      $('[data-act="toggle"]'),
@@ -27,6 +27,9 @@ const el = {
   connectBtn:$(".connect-btn"),
   disconnect:$(".disconnect"),
   fs:        $(".fs"),
+  cfg:       $(".cfg"),
+  cfgModal:  $(".cfg-modal"),
+  cfgFanart: $(".cfg-fanart"),
 };
 
 const fmt = ms => {
@@ -74,7 +77,12 @@ function renderSnapshot(s) {
     applyCover(s.coverUrl || "", s.albumName || "", s.albumId || "", false);
   }
   setBg(s.coverUrl || "");
-  setArtistPhoto(s.artistPhotoUrl || "");
+  if (s.artistPhotoUrl) {
+    artistUrl = s.artistPhotoUrl;
+    showArtistImage(s.artistPhotoUrl, true);
+  } else {
+    setArtistPhoto("");
+  }
   cur = {
     isPlaying: false,
     progressMs: s.progressMs || 0,
@@ -82,9 +90,12 @@ function renderSnapshot(s) {
     sync: Date.now(),
     trackId: s.trackId || null,
     albumId: s.albumId || null,
+    artistId: s.artistId || null,
+    artistName: s.artistName || "",
   };
   el.disc.classList.remove("is-playing");
   reflectPlaying();
+  buscarImagensDoArtista(cur.artistId, cur.artistName);
 }
 
 // aplica a capa; com spin=true faz o giro de troca de album
@@ -135,17 +146,150 @@ async function artistImage(id) {
   return artistImgCache.url;
 }
 let artistUrl = "";
-function setArtistPhoto(url) {
-  if (url === artistUrl) return;
-  artistUrl = url;
-  if (!url) { el.wrap.dataset.hasArtist = "false"; el.artistImg.removeAttribute("src"); return; }
+let artistLayer = 0;
+function showArtistImage(url, imediato) {
+  if (!url) return;
+  const next = el.artistImgs[artistLayer ^ 1];
+  const prev = el.artistImgs[artistLayer];
+  const aplica = () => {
+    next.src = url;
+    el.wrap.dataset.hasArtist = "true";
+    next.classList.add("is-on");
+    prev.classList.remove("is-on");
+    artistLayer ^= 1;
+  };
+  if (imediato) { aplica(); return; }
   const pre = new Image();
   pre.onload = () => {
     if (artistUrl !== url) return;
-    el.artistImg.src = url;
-    el.wrap.dataset.hasArtist = "true";
+    aplica();
   };
   pre.src = url;
+}
+
+function setArtistPhoto(url) {
+  if (url === artistUrl) return;
+  artistUrl = url;
+  if (!url) {
+    el.wrap.dataset.hasArtist = "false";
+    el.artistImgs.forEach(i => i.removeAttribute("src"));
+    return;
+  }
+  showArtistImage(url);
+}
+
+const FANART_PROJETO = "10ecb43d661dad793e6b0fb409dc65b7";
+const FANART_TRIES   = 3;
+const FANART_STORE   = "vp_fanart";
+const FANART_PREF    = "vp_fanart_on";
+
+let fanartAtivo = localStorage.getItem(FANART_PREF) === "true";
+
+let fanartCache = {};
+try { fanartCache = JSON.parse(localStorage.getItem(FANART_STORE) || "{}"); } catch {}
+function saveFanart(artistId, dados) {
+  fanartCache[artistId] = { ...(fanartCache[artistId] || {}), ...dados };
+  try { localStorage.setItem(FANART_STORE, JSON.stringify(fanartCache)); } catch {}
+}
+
+async function mbidDoArtista(artistId, nome) {
+  const hit = fanartCache[artistId];
+  if (hit && "mbid" in hit) return hit.mbid;
+  const url = "https://musicbrainz.org/ws/2/artist/?fmt=json&limit=1&query="
+            + encodeURIComponent(nome);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("musicbrainz " + r.status);
+  const d = await r.json();
+  const mbid = d.artists?.[0]?.id || null;
+  saveFanart(artistId, { mbid });
+  return mbid;
+}
+
+async function imagensDaFanart(artistId, nome) {
+  const hit = fanartCache[artistId];
+  if (hit && hit.urls) return hit.urls;
+  const mbid = await mbidDoArtista(artistId, nome);
+  if (!mbid) return [];
+  const params = new URLSearchParams({ api_key: FANART_PROJETO });
+  const r = await fetch(`https://webservice.fanart.tv/v3/music/${mbid}?${params}`);
+  if (r.status === 404) { saveFanart(artistId, { urls: [] }); return []; }
+  if (!r.ok) throw new Error("fanart " + r.status);
+  const d = await r.json();
+  const urls = [...(d.artistthumb || []), ...(d.artistbackground || [])].map(x => x.url);
+  saveFanart(artistId, { urls });
+  return urls;
+}
+
+let fanartRun = { chave: null, tentativas: 0, encerrado: false };
+let fanartOcupado = false;
+
+async function buscarImagensDoArtista(artistId, nome) {
+  if (!fanartAtivo) return;
+  if (el.wrap.dataset.view !== "capa") return;
+  if (!artistId || !nome) return;
+
+  const emCache = fanartCache[artistId];
+  if (emCache?.urls) {
+    if (emCache.urls.length && slidesFor !== artistId) startArtistSlides(emCache.urls, artistId);
+    return;
+  }
+
+  const chave = artistId + "|" + (cur.albumId || "");
+  if (chave !== fanartRun.chave) {
+    fanartRun = { chave, tentativas: 0, encerrado: false };
+  }
+  if (fanartRun.encerrado || fanartOcupado) return;
+
+  fanartRun.tentativas++;
+  fanartOcupado = true;
+  try {
+    const urls = await imagensDaFanart(artistId, nome);
+    fanartRun.encerrado = true;
+    if (urls.length) startArtistSlides(urls, artistId);
+  } catch {
+    if (fanartRun.tentativas >= FANART_TRIES) fanartRun.encerrado = true;
+  } finally {
+    fanartOcupado = false;
+  }
+}
+
+const SLIDE_MS = 15000;
+const SLIDE_POS = "vp_slide_pos";
+let slides = [], slideTimer = null;
+let slidesFor = null;
+
+let slidePos = Number(localStorage.getItem(SLIDE_POS)) || 0;
+
+function proximoSlide() {
+  slidePos = (slidePos + 1) % 1e6;
+  try { localStorage.setItem(SLIDE_POS, slidePos); } catch {}
+  return slides[slidePos % slides.length];
+}
+
+function stopArtistSlides() {
+  clearInterval(slideTimer);
+  slideTimer = null;
+  slides = [];
+  slidesFor = null;
+}
+
+function startArtistSlides(urls, artistId) {
+  stopArtistSlides();
+  if (!urls.length) return;
+  slides = urls;
+  slidesFor = artistId;
+
+  const troca = () => {
+    if (el.wrap.dataset.view !== "capa" || el.wrap.dataset.state !== "playing") return;
+    artistUrl = proximoSlide();
+    showArtistImage(artistUrl);
+  };
+
+  if (urls.length < 2 || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    slideTimer = setTimeout(troca, SLIDE_MS);
+    return;
+  }
+  slideTimer = setInterval(troca, SLIDE_MS);
 }
 
 // visualizacao: "vinil" (default) ou "capa". animate=true faz o crossfade.
@@ -268,7 +412,8 @@ async function api(url, opts = {}, retried = false) {
 }
 
 // ---- estado local ----
-let cur = { isPlaying: false, progressMs: 0, durationMs: 0, sync: 0, trackId: null, albumId: null };
+let cur = { isPlaying: false, progressMs: 0, durationMs: 0, sync: 0, trackId: null, albumId: null,
+            artistId: null, artistName: "" };
 let album = { id: null, uri: null, tracks: [], failedAt: 0 };
 const ALBUM_RETRY_MS = 30000;   // quanto uma falha de album fica valendo antes de tentar de novo
 // play/pausa otimista: segura o valor ate a API confirmar, sem piscar
@@ -536,9 +681,15 @@ async function tickOnce() {
   if (el.topAlbum.textContent !== albumText) el.topAlbum.textContent = albumText;
   setBg(img);
   const artistId = it.artists?.[0]?.id || "";
+  const artistName = it.artists?.[0]?.name || "";
+  const trocouFaixa = cur.trackId && cur.trackId !== it.id;
+  if (trocouFaixa || (slidesFor && slidesFor !== artistId)) {
+    stopArtistSlides();
+    artistUrl = "";
+  }
   if (artistId) {
     artistImage(artistId).then(url => {
-      setArtistPhoto(url);
+      if (!artistUrl) setArtistPhoto(url);
       if (snapshot && snapshot.trackId === it.id) { snapshot.artistPhotoUrl = url; persistSnapshot(); }
     });
   } else {
@@ -559,15 +710,21 @@ async function tickOnce() {
     sync: Date.now(),
     trackId: it.id,
     albumId: it.album?.id ?? null,
+    artistId,
+    artistName,
   };
   reflectPlaying();
   setState("playing");
+
+  buscarImagensDoArtista(artistId, artistName);
 
   // guarda o cenario completo pro reload / pausa no celular
   snapshot = {
     trackId: it.id,
     trackName: it.name,
     artistNames: names,
+    artistId,
+    artistName,
     albumName,
     albumReleaseDate,
     albumId: it.album?.id || "",
@@ -615,7 +772,8 @@ setView(localStorage.getItem("view_mode") || "vinil");
 el.viewtoggle.addEventListener("click", () => {
   const v = el.wrap.dataset.view === "capa" ? "vinil" : "capa";
   setView(v, true);
-  if (v === "vinil") tick();   // a lista de faixas volta a existir: busca agora, sem esperar o intervalo
+  if (v === "vinil") tick();
+  else buscarImagensDoArtista(cur.artistId, cur.artistName);
 });
 
 // tela cheia
@@ -630,6 +788,26 @@ el.fs.addEventListener("click", () => {
 });
 document.addEventListener("fullscreenchange", syncFs);
 syncFs();
+
+el.cfg.addEventListener("click", () => {
+  el.cfgFanart.checked = fanartAtivo;
+  el.cfgModal.showModal();
+});
+
+el.cfgModal.addEventListener("close", () => {
+  if (el.cfgModal.returnValue !== "salvar") return;
+  if (el.cfgFanart.checked === fanartAtivo) return;
+  fanartAtivo = el.cfgFanart.checked;
+  try { localStorage.setItem(FANART_PREF, fanartAtivo); } catch {}
+  if (fanartAtivo) {
+    fanartRun = { chave: null, tentativas: 0, encerrado: false };
+    buscarImagensDoArtista(cur.artistId, cur.artistName);
+  } else {
+    stopArtistSlides();
+    artistUrl = "";
+    setArtistPhoto(artistImgCache.url || "");
+  }
+});
 
 // atalho: espaco = play/pausa
 document.addEventListener("keydown", e => {
