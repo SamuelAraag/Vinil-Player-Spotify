@@ -1,9 +1,16 @@
 # Vinil-Player-Spotify
 
 Widget web de "tocando agora" do Spotify, interface própria (não é o player embed
-oficial). Arquivo único (`index.html`, HTML + CSS + JS inline, sem build, sem servidor
-próprio) com um disco de vinil girando, braço de toca-discos animado com física
-simulada e a capa do álbum no selo central.
+oficial), com um disco de vinil girando, braço de toca-discos animado e a capa do
+álbum no selo central.
+
+Três arquivos estáticos, **sem build e sem servidor próprio** — é só servir a pasta:
+
+```
+index.html   estrutura (~90 linhas)
+app.css      estilo, tokens e as duas visualizações
+app.js       Spotify (PKCE, polling, controles) e a coreografia da agulha
+```
 
 ## Conceito
 
@@ -37,7 +44,7 @@ ativo pra funcionar o controle).
 
 ## Mapa de dados: de onde vem cada informação
 
-Referência rápida pra não precisar reler o script inteiro toda vez. Tudo isso é
+Referência rápida pra não precisar reler o `app.js` inteiro toda vez. Tudo isso é
 `fetch` direto pra API REST do Spotify (`api()` cuida de token/refresh/erros).
 
 | O que aparece na tela | Elemento (seletor) | Requisição | Campo na resposta |
