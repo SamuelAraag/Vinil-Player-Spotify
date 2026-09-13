@@ -319,17 +319,25 @@ function startArtistSlides(urls, artistId) {
   if (!urls.length) return;
   slides = urls;
   slidesFor = artistId;
-  // ja entra na proxima posicao: cada abertura da tela mostra uma imagem
-  // diferente, em vez de fixar a primeira
-  artistUrl = proximoSlide();
-  showArtistImage(artistUrl);
-  // uma imagem so nao e rodizio; e com movimento reduzido fica parado nela
-  if (urls.length < 2 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  slideTimer = setInterval(() => {
+
+  // A PRIMEIRA imagem da fanart tambem espera o intervalo. Antes ela entrava
+  // assim que a busca respondia - e como as urls ficam no vp_fanart, responder
+  // e quase instantaneo, entao a foto do Spotify mal aparecia antes de ser
+  // trocada. Quem abre a tela e a foto do Spotify; a fanart e o que vem depois.
+  const troca = () => {
     if (el.wrap.dataset.view !== "capa" || el.wrap.dataset.state !== "playing") return;
-    artistUrl = proximoSlide();
-    showArtistImage(artistUrl);
-  }, SLIDE_MS);
+    artistUrl = proximoSlide();     // ja entra na proxima posicao: aberturas
+    showArtistImage(artistUrl);     // seguidas mostram imagens diferentes
+  };
+
+  // uma imagem so nao e rodizio, e com movimento reduzido tambem nao roda: nos
+  // dois casos ela entra uma vez, no mesmo tempo, e fica. (clearInterval serve
+  // pros dois tipos de timer, entao o stopArtistSlides nao muda.)
+  if (urls.length < 2 || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    slideTimer = setTimeout(troca, SLIDE_MS);
+    return;
+  }
+  slideTimer = setInterval(troca, SLIDE_MS);
 }
 
 // visualizacao: "vinil" (default) ou "capa". animate=true faz o crossfade.
