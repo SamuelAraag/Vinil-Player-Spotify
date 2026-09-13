@@ -217,7 +217,7 @@ const FANART_PREF    = "vp_fanart_on";   // liga/desliga o fluxo inteiro
 
 // desligado por padrao: sao imagens pesadas (~550KB cada, sem cache do servidor
 // deles) vindas de dois servicos de terceiros. E enfeite, entao quem quiser liga.
-let fanartAtivo = localStorage.getItem(FANART_PREF) === "1";
+let fanartAtivo = localStorage.getItem(FANART_PREF) === "true";
 
 let fanartCache = {};
 try { fanartCache = JSON.parse(localStorage.getItem(FANART_STORE) || "{}"); } catch {}
@@ -846,7 +846,7 @@ el.cfgModal.addEventListener("close", () => {
   if (el.cfgModal.returnValue !== "salvar") return;      // cancelar/Esc: nada muda
   if (el.cfgFanart.checked === fanartAtivo) return;      // salvou sem ter mexido
   fanartAtivo = el.cfgFanart.checked;
-  try { localStorage.setItem(FANART_PREF, fanartAtivo ? "1" : "0"); } catch {}
+  try { localStorage.setItem(FANART_PREF, fanartAtivo); } catch {}   // vira "true"/"false"
   if (fanartAtivo) {
     // liga: busca ja, sem esperar o proximo tick
     fanartRun = { chave: null, tentativas: 0, encerrado: false };
