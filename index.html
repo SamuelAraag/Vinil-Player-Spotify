@@ -684,6 +684,13 @@ const fmt = ms => {
   const s = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
+// "Nome do album · 1999" - ano vem de release_date (item.album.release_date, ja
+// no retorno de /me/player/currently-playing, sem chamada extra), 4 primeiros
+// caracteres cobrem as 3 precisoes que a API manda (year/month/day).
+const albumLabel = (name, releaseDate) => {
+  const year = (releaseDate || "").slice(0, 4);
+  return year ? `${name} · ${year}` : (name || "");
+};
 
 function setState(s, msg) {
   el.wrap.dataset.state = s;
@@ -709,7 +716,8 @@ function renderSnapshot(s) {
   // (now__title), destaque e so a musica.
   if (el.title.textContent !== (s.trackName || "")) el.title.textContent = s.trackName || "";
   if (el.topArtist.textContent !== (s.artistNames || "")) el.topArtist.textContent = s.artistNames || "";
-  if (el.topAlbum.textContent !== (s.albumName || "")) el.topAlbum.textContent = s.albumName || "";
+  const snapAlbumText = albumLabel(s.albumName, s.albumReleaseDate);
+  if (el.topAlbum.textContent !== snapAlbumText) el.topAlbum.textContent = snapAlbumText;
   if (el.sleeveImg.dataset.src !== (s.coverUrl || "")) {
     el.sleeveImg.dataset.src = s.coverUrl || "";
     el.sleeveImg.dataset.albumId = s.albumId || "";
@@ -1156,6 +1164,7 @@ async function tick() {
   const it = d.item;
   const names = it.artists ? it.artists.map(a => a.name).join(", ") : (it.show ? it.show.name : "");
   const albumName = it.album?.name ?? it.show?.name ?? "";
+  const albumReleaseDate = it.album?.release_date ?? "";
   const img = it.album?.images?.[0]?.url ?? it.images?.[0]?.url ?? "";
 
   if (el.sleeveImg.dataset.src !== img) {
@@ -1172,7 +1181,8 @@ async function tick() {
   // (now__title), destaque e so a musica.
   if (el.title.textContent !== it.name) el.title.textContent = it.name;
   if (el.topArtist.textContent !== names) el.topArtist.textContent = names;
-  if (el.topAlbum.textContent !== albumName) el.topAlbum.textContent = albumName;
+  const albumText = albumLabel(albumName, albumReleaseDate);
+  if (el.topAlbum.textContent !== albumText) el.topAlbum.textContent = albumText;
   setBg(img);
   const artistId = it.artists?.[0]?.id || "";
   if (artistId) {
@@ -1219,6 +1229,7 @@ async function tick() {
     trackName: it.name,
     artistNames: names,
     albumName,
+    albumReleaseDate,
     albumId: it.album?.id || "",
     coverUrl: img,
     artistPhotoUrl: artistImgCache.id === artistId ? artistImgCache.url : (snapshot?.trackId === it.id ? snapshot.artistPhotoUrl : ""),
