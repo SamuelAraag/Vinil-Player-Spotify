@@ -132,7 +132,7 @@ Regras do fluxo (tudo em `app.js`, seção "imagens extras do artista"):
 - **Dicionário em `localStorage` (`vp_fanart`)**, indexado pelo id do artista no Spotify
   (estável, ao contrário do nome): guarda o mbid e as urls. Da segunda vez em diante o
   artista não custa requisição nenhuma.
-- Com mais de uma imagem, elas entram em **rodízio com crossfade** a cada 9s, em duas
+- Com mais de uma imagem, elas entram em **rodízio com crossfade** a cada 30s, em duas
   camadas empilhadas. Com `prefers-reduced-motion`, fica na primeira.
 
 Só o **artista principal** vai pra busca (`item.artists[0].name`) — mandar a lista junta

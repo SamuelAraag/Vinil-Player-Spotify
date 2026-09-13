@@ -260,7 +260,10 @@ async function buscarImagensDoArtista(artistId, nome) {
 }
 
 // ---- rodizio das imagens da fanart.tv ----
-const SLIDE_MS = 9000;
+// quanto cada imagem fica em tela. Ritmo de galeria, nao de slideshow: o player
+// fica aberto enquanto o album toca, entao imagem trocando rapido vira agitacao
+// no canto do olho. 30s da uma media de 4 a 5 imagens por faixa.
+const SLIDE_MS = 30000;
 let slides = [], slideIdx = 0, slideTimer = null;
 let slidesFor = null;   // de qual artista sao as imagens que estao no ar
 
