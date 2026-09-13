@@ -1020,83 +1020,49 @@ async function sendControl(fn, okResync = true) {
 const prev = () => sendControl(() => api("https://api.spotify.com/v1/me/player/previous", { method: "POST" }));
 const next = () => sendControl(() => api("https://api.spotify.com/v1/me/player/next", { method: "POST" }));
 
-// ---- fade de volume no play/pausa, sincronizado com a agulha ----
+// ---- play/pausa no tempo da agulha ----
+// O som nao e mais "amaciado" por fade de volume (o player nao mexe mais no
+// volume do device em momento nenhum). Quem da o ritmo agora e o movimento da
+// agulha: ela desce, encosta no sulco, e SO ENTAO o play acontece; no pause, o
+// disco para e a agulha sobe antes do comando sair. Os tempos abaixo sao os
+// mesmos das transicoes do CSS em .tonearm.
 const delay = ms => new Promise(r => setTimeout(r, ms));
-const VOL_STEPS = 5;
-const VOL_STEP_MS = 48;
-let savedVolume = null;
-let volumeSeeded = false;
-let fading = false;
-
-async function getVolume() {
-  try {
-    const p = await api("https://api.spotify.com/v1/me/player");
-    const v = p?.device?.volume_percent;
-    return typeof v === "number" ? v : null;
-  } catch { return null; }
-}
-async function setVolume(v) {
-  try {
-    await api("https://api.spotify.com/v1/me/player/volume?volume_percent=" + Math.round(v), { method: "PUT" });
-    return true;
-  } catch { return false; }
-}
-
-async function audioFadeOut() {
-  const v = savedVolume ?? await getVolume();
-  if (v != null && v > 0) {
-    savedVolume = v;
-    for (let i = VOL_STEPS - 1; i >= 1; i--) {
-      if (!await setVolume(v * i / VOL_STEPS)) break;
-      await delay(VOL_STEP_MS);
-    }
-    await setVolume(0);
-  }
-  try {
-    await api("https://api.spotify.com/v1/me/player/pause", { method: "PUT" });
-  } catch (e) { showControlErr(e); }
-  if (v != null && v > 0) await setVolume(v);      // restaura (mudo, ta pausado)
-}
-async function audioFadeIn() {
-  const target = savedVolume ?? await getVolume();
-  const canVol = target != null && await setVolume(0);
-  try {
-    await api("https://api.spotify.com/v1/me/player/play", { method: "PUT" });
-  } catch (e) { showControlErr(e); }
-  if (canVol) {
-    for (let i = 1; i <= VOL_STEPS; i++) {
-      if (!await setVolume(target * i / VOL_STEPS)) break;
-      await delay(VOL_STEP_MS);
-    }
-    savedVolume = target;
-  }
-}
+const ARM_DOWN_MS = 1000;   // .tonearm: transition 1s (descida amortecida)
+const ARM_UP_MS   = 600;    // [data-playing="false"] .tonearm: 0.6s ease-in
+let armMoving = false;
 
 async function toggle() {
-  if (fading) return;
+  if (armMoving) return;
   const willPlay = !cur.isPlaying;
-  fading = true;
+  armMoving = true;
   cur.isPlaying = willPlay;                        // efeito imediato no disco/botao
   cur.sync = Date.now();
   pending = { value: willPlay, until: Date.now() + 6000 };
   el.hint.textContent = "";
+  // sem animacao, nao ha agulha pra esperar
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   try {
     if (willPlay) {
       el.disc.classList.add("is-playing");
       el.wrap.dataset.playing = "true";            // desce a agulha
       el.main.textContent = "pause";
       el.main.setAttribute("aria-label", "Pausar");
-      await delay(650);                            // deixa a agulha pousar (descida ~1s) antes do som
-      await audioFadeIn();
+      await delay(reduce ? 0 : ARM_DOWN_MS);       // toca quando ela encosta no vinil
+      try {
+        await api("https://api.spotify.com/v1/me/player/play", { method: "PUT" });
+      } catch (e) { showControlErr(e); }
     } else {
-      await audioFadeOut();                        // fade do volume + pausa
-      el.disc.classList.remove("is-playing");
-      el.wrap.dataset.playing = "false";           // levanta a agulha
+      el.disc.classList.remove("is-playing");      // disco para
+      el.wrap.dataset.playing = "false";           // agulha sobe
       el.main.textContent = "play";
       el.main.setAttribute("aria-label", "Tocar");
+      await delay(reduce ? 0 : ARM_UP_MS);         // pausa quando ela termina de subir
+      try {
+        await api("https://api.spotify.com/v1/me/player/pause", { method: "PUT" });
+      } catch (e) { showControlErr(e); }
     }
   } finally {
-    fading = false;
+    armMoving = false;
     if (pending) pending.until = Date.now() + 3500;
     setTimeout(tick, 900);
   }
@@ -1128,7 +1094,7 @@ let ticking = false;
 let offlineHint = false;
 
 async function tick() {
-  if (ticking || fading || Date.now() < backoffUntil) return;  // nao mexe na tela durante o fade
+  if (ticking || armMoving || Date.now() < backoffUntil) return;  // nao mexe na tela no meio do movimento da agulha
   if (el.wrap.dataset.state === "auth") return;                // deslogado: nao adianta pedir
   ticking = true;
   try { await tickOnce(); } finally { ticking = false; }
@@ -1249,12 +1215,6 @@ async function tickOnce() {
   };
   reflectPlaying();
   setState("playing");
-
-  // pega o volume do device uma vez, pra primeira pausa ja ter o fade
-  if (!volumeSeeded && playing && !fading) {
-    volumeSeeded = true;
-    getVolume().then(v => { if (v != null) savedVolume = v; });
-  }
 
   // guarda o cenario completo pro reload / pausa no celular
   snapshot = {
