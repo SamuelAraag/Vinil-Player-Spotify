@@ -74,16 +74,19 @@ function renderSnapshot(s) {
     applyCover(s.coverUrl || "", s.albumName || "", s.albumId || "", false);
   }
   setBg(s.coverUrl || "");
-  // o painel do artista nao pode abrir vazio no reload. Usa o que ja esta
-  // guardado: a imagem da fanart, se esse artista ja foi resolvido alguma vez,
-  // senao a foto do Spotify do proprio snapshot. Pinta na hora (imediato=true) -
-  // esperar o pre-carregamento aqui e justamente o que deixava o buraco.
-  const salva = fanartCache[s.artistId]?.urls?.[0] || s.artistPhotoUrl || "";
-  if (salva) {
-    artistUrl = salva;
-    showArtistImage(salva, true);
+  // No primeiro carregamento quem vale e a foto do Spotify (a do snapshot):
+  // 640x640, do CDN deles, com cache de verdade. As imagens da fanart.tv sao
+  // perfumaria e entram depois, se entrarem - sao 549KB CADA e o servidor delas
+  // nao manda cabecalho de cache nenhum (sem etag, sem last-modified, sem
+  // max-age), entao o navegador rebaixa tudo de novo a cada reload. Abrir a tela
+  // esperando por elas era o que deixava o painel lento.
+  // O `true` pula o pre-carregamento: no boot nao ha transicao a proteger, e a
+  // foto do Spotify normalmente ja esta no cache do navegador.
+  if (s.artistPhotoUrl) {
+    artistUrl = s.artistPhotoUrl;
+    showArtistImage(s.artistPhotoUrl, true);
   } else {
-    setArtistPhoto(s.artistPhotoUrl || "");
+    setArtistPhoto("");
   }
   cur = {
     isPlaying: false,
