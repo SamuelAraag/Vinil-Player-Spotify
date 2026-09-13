@@ -4,6 +4,20 @@ Widget web de "tocando agora" do Spotify, interface própria (não é o player e
 oficial), com um disco de vinil girando, braço de toca-discos animado e a capa do
 álbum no selo central.
 
+No ar em **https://samuelaraag.github.io/Vinil-Player-Spotify/**
+
+São duas visualizações, alternadas pelo primeiro botão do canto direito.
+
+**Vinil** — a capa em destaque, o disco girando abaixo dela com a agulha pousada, e a
+lista de faixas do álbum no rodapé.
+
+![Visualização vinil: capa do álbum em destaque, disco girando com a agulha, e a lista de faixas abaixo](docs/vinil.jpg)
+
+**Capa** — split editorial: a capa à esquerda com o nome da música, e o artista à
+direita em foto grande, que alterna entre as imagens disponíveis.
+
+![Visualização capa: capa do álbum à esquerda e foto do artista à direita, lado a lado](docs/capa.jpg)
+
 Três arquivos estáticos, **sem build e sem servidor próprio** — é só servir a pasta:
 
 ```
