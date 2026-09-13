@@ -168,7 +168,6 @@ button { font-family: inherit; }
   border-radius: 4px;
   overflow: hidden;
   background: var(--panel-fallback);
-  border: 1px solid var(--border);
   box-shadow: 0 26px 54px -14px rgba(0,0,0,0.68);
 }
 /* troca de album: meia-volta num sentido so (0->90 some, -90->0 entra a nova) */
@@ -570,7 +569,6 @@ button:focus-visible, a:focus-visible {
   min-height: clamp(280px, 42vw, 560px);
   overflow: hidden;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
   box-shadow: 0 26px 54px -14px rgba(0,0,0,0.6);
   background: var(--panel-fallback);
 }
