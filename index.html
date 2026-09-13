@@ -937,7 +937,8 @@ async function api(url, opts = {}, retried = false) {
 
 // ---- estado local ----
 let cur = { isPlaying: false, progressMs: 0, durationMs: 0, sync: 0, trackId: null, albumId: null };
-let album = { id: null, uri: null, tracks: [] };
+let album = { id: null, uri: null, tracks: [], failedAt: 0 };
+const ALBUM_RETRY_MS = 30000;   // quanto uma falha de album fica valendo antes de tentar de novo
 // play/pausa otimista: segura o valor ate a API confirmar, sem piscar
 let pending = null; // { value: boolean, until: number }
 let firstTick = true;
@@ -989,16 +990,25 @@ function renderTracks(items, currentId) {
 }
 
 async function loadAlbum(id) {
-  if (!id || id === album.id) return album.tracks;
+  if (!id) return [];
+  // cache por id, com uma ressalva: falha nao vira cache permanente. Antes, um
+  // GET que falhasse gravava a lista vazia sob esse id e o early return devolvia
+  // ela pra sempre - a lista de faixas (e o context_uri do clique) so voltavam
+  // a funcionar trocando de album. Agora a falha vale por ALBUM_RETRY_MS e
+  // depois tenta de novo, sem insistir a cada tick de 5s (o que so renderia 429).
+  const cached = id === album.id
+    && (!album.failedAt || Date.now() - album.failedAt < ALBUM_RETRY_MS);
+  if (cached) return album.tracks;
   try {
     const a = await api("https://api.spotify.com/v1/albums/" + id + "?limit=50");
     album = {
       id,
       uri: a.uri,
       tracks: a.tracks.items.map(t => ({ id: t.id, name: t.name, duration_ms: t.duration_ms, uri: t.uri })),
+      failedAt: 0,
     };
   } catch {
-    album = { id, uri: null, tracks: [] };
+    album = { id, uri: null, tracks: [], failedAt: Date.now() };
   }
   return album.tracks;
 }
