@@ -182,7 +182,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin: clamp(16px, 3vh, 44px) auto 0;
+    margin: 0 auto;
     transition: opacity 0.26s ease, transform 0.26s ease;
   }
   .stage.switching { opacity: 0; transform: translateY(10px) scale(0.99); }
@@ -300,8 +300,11 @@
   }
   .tonearm {
     position: absolute;
-    /* top e a altura da bolinha (o pivo): tudo o mais gira/pende dela */
-    right: 3%; top: 42%;
+    /* top e a altura da bolinha (o pivo): tudo o mais gira/pende dela. Mesmo
+       deslocamento que o .disc3d levou (-17%) pra acompanhar o disco e nao
+       desalinhar (a distancia entre os dois e o que faz a agulha "encostar"
+       na borda certa). */
+    right: 3%; top: 25%;
     width: calc(var(--cover) * 0.52); height: 3px;
     font-size: calc(var(--cover) * 0.045);   /* escala das pecas */
     border-radius: 2px;
