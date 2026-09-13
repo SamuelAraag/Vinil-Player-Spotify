@@ -34,20 +34,6 @@
       radial-gradient(120% 90% at 18% 8%, rgba(30,215,96,0.22), transparent 58%),
       linear-gradient(155deg, var(--bg-alt), var(--bg) 60%);
   }
-  [data-theme="light"] {
-    --bg: #ffffff;
-    --bg-alt: #f2f2f2;
-    --text: #121212;
-    --muted: #5c5c5c;
-    --faint: #9a9a9a;
-    --primary: #1db954;
-    --primary-dim: #169c46;
-    --on-primary: #ffffff;
-    --border: rgba(0,0,0,0.14);
-    --glass: rgba(0,0,0,0.05);
-    --rail: rgba(0,0,0,0.16);
-  }
-
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   body {
@@ -80,7 +66,6 @@
   }
   .bg.on { opacity: 0.42; }
   .bg.on.bg--immersive { opacity: 0.5; }
-  [data-theme="light"] .bg.on { opacity: 0.24; }
 
   .wrap {
     width: 100%;
@@ -1144,9 +1129,23 @@ let offlineHint = false;
 
 async function tick() {
   if (ticking || fading || Date.now() < backoffUntil) return;  // nao mexe na tela durante o fade
+  if (el.wrap.dataset.state === "auth") return;                // deslogado: nao adianta pedir
   ticking = true;
   try { await tickOnce(); } finally { ticking = false; }
 }
+
+// o polling so roda com a aba visivel: em background ninguem esta vendo a tela,
+// e cada tick e uma requisicao a toa (quota da API e bateria). Ao voltar pra
+// aba, ressincroniza na hora em vez de esperar o proximo intervalo.
+let pollId = null;
+function syncPolling() {
+  clearInterval(pollId);
+  pollId = null;
+  if (document.hidden) return;
+  tick();
+  pollId = setInterval(tick, 5000);
+}
+document.addEventListener("visibilitychange", syncPolling);
 
 async function tickOnce() {
   let d;
@@ -1275,7 +1274,9 @@ async function tickOnce() {
 
   firstTick = false;
 
-  if (cur.albumId) {
+  // a lista de faixas so existe no modo vinil - no modo capa ela esta escondida
+  // por CSS, entao nem vale gastar uma requisicao buscando o album.
+  if (cur.albumId && el.wrap.dataset.view !== "capa") {
     const tracks = await loadAlbum(cur.albumId);
     if (tracks.length) {
       // redesenha so quando muda de album; dentro do mesmo album, trocar de
@@ -1305,7 +1306,9 @@ el.disconnect.addEventListener("click", forceAuth);
 // troca de visualizacao
 setView(localStorage.getItem("view_mode") || "vinil");
 el.viewtoggle.addEventListener("click", () => {
-  setView(el.wrap.dataset.view === "capa" ? "vinil" : "capa", true);
+  const v = el.wrap.dataset.view === "capa" ? "vinil" : "capa";
+  setView(v, true);
+  if (v === "vinil") tick();   // a lista de faixas volta a existir: busca agora, sem esperar o intervalo
 });
 
 // tela cheia
@@ -1352,8 +1355,7 @@ if (snapshot && snapshot.coverUrl && localStorage.getItem("access_token")) {
   }
   if (!localStorage.getItem("access_token")) { setState("auth"); return; }
   if (!(snapshot && snapshot.coverUrl)) setState("loading", "Carregando…");
-  tick();
-  setInterval(tick, 5000);
+  syncPolling();   // tick imediato + intervalo, se a aba estiver visivel
 })();
 </script>
 </body>
