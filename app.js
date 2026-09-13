@@ -74,7 +74,17 @@ function renderSnapshot(s) {
     applyCover(s.coverUrl || "", s.albumName || "", s.albumId || "", false);
   }
   setBg(s.coverUrl || "");
-  setArtistPhoto(s.artistPhotoUrl || "");
+  // o painel do artista nao pode abrir vazio no reload. Usa o que ja esta
+  // guardado: a imagem da fanart, se esse artista ja foi resolvido alguma vez,
+  // senao a foto do Spotify do proprio snapshot. Pinta na hora (imediato=true) -
+  // esperar o pre-carregamento aqui e justamente o que deixava o buraco.
+  const salva = fanartCache[s.artistId]?.urls?.[0] || s.artistPhotoUrl || "";
+  if (salva) {
+    artistUrl = salva;
+    showArtistImage(salva, true);
+  } else {
+    setArtistPhoto(s.artistPhotoUrl || "");
+  }
   cur = {
     isPlaying: false,
     progressMs: s.progressMs || 0,
@@ -145,18 +155,24 @@ async function artistImage(id) {
 // aparecer meia imagem.
 let artistUrl = "";
 let artistLayer = 0;
-function showArtistImage(url) {
+// imediato=true pula o pre-carregamento e pinta ja. Serve pro boot: ali nao ha
+// transicao a proteger, e ver a imagem aparecendo e melhor que ver painel vazio.
+function showArtistImage(url, imediato) {
   if (!url) return;
   const next = el.artistImgs[artistLayer ^ 1];
   const prev = el.artistImgs[artistLayer];
-  const pre = new Image();
-  pre.onload = () => {
-    if (artistUrl !== url) return;              // ja mudou de novo enquanto carregava
+  const aplica = () => {
     next.src = url;
     el.wrap.dataset.hasArtist = "true";
     next.classList.add("is-on");
     prev.classList.remove("is-on");
     artistLayer ^= 1;
+  };
+  if (imediato) { aplica(); return; }
+  const pre = new Image();
+  pre.onload = () => {
+    if (artistUrl !== url) return;              // ja mudou de novo enquanto carregava
+    aplica();
   };
   pre.src = url;
 }
@@ -262,8 +278,8 @@ async function buscarImagensDoArtista(artistId, nome) {
 // ---- rodizio das imagens da fanart.tv ----
 // quanto cada imagem fica em tela. Ritmo de galeria, nao de slideshow: o player
 // fica aberto enquanto o album toca, entao imagem trocando rapido vira agitacao
-// no canto do olho. 30s da uma media de 4 a 5 imagens por faixa.
-const SLIDE_MS = 30000;
+// no canto do olho. 15s da uma media de 4 a 5 imagens por faixa.
+const SLIDE_MS = 15000;
 let slides = [], slideIdx = 0, slideTimer = null;
 let slidesFor = null;   // de qual artista sao as imagens que estao no ar
 
