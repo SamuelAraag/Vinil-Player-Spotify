@@ -104,7 +104,30 @@
   /* hierarquia de 3 niveis, do mais pro menos importante: artista (serif, --text),
      album (mono, --muted, colado no artista) e faixa (mono, --faint, com um
      espaco extra acima pra se separar do par artista+album por proximidade,
-     nao so por cor/tamanho). */
+     nao so por cor/tamanho).
+     text-shadow em todo mundo: esse texto fica sempre sobre o .bg (a propria
+     capa do album, borrada) - contraste contra um token solido nao garante nada
+     quando o fundo e uma foto, porque a cor por tras varia pixel a pixel, e pode
+     coincidir com a propria cor do texto (foi o bug relatado: a capa tinha um
+     tom parecido com --faint e a faixa sumiu). Testado ao vivo contra um fundo
+     solido na cor exata do --faint: o blur suave sozinho (0 2px 14px, o mesmo
+     valor que ja existia so pro modo capa) nao segura - a mancha e larga demais
+     pra dar contraste bem colado no traco fino do texto pequeno. Reforcado com
+     um contorno (4 sombras de 1px sem blur ao redor + o blur original por cima)
+     - cria uma borda solida escura direto na borda do glifo, que funciona
+     independente da cor por tras, do mesmo jeito que legenda de video usa
+     contorno pra ficar legivel em qualquer cena. Mesma cor preta que o resto do
+     arquivo ja usa pra sombra (rgba(0,0,0,*)), so mais opaca. */
+  .top__artist,
+  .top__album,
+  .top__track {
+    text-shadow:
+      -1px -1px 1px rgba(0,0,0,0.85),
+      1px -1px 1px rgba(0,0,0,0.85),
+      -1px 1px 1px rgba(0,0,0,0.85),
+      1px 1px 1px rgba(0,0,0,0.85),
+      0 2px 14px rgba(0,0,0,0.55);
+  }
   .top__artist {
     max-width: 46vw;
     font: 500 clamp(22px, 6vw, 39px)/1.15 var(--serif);
@@ -368,6 +391,7 @@
     font: 500 clamp(24px, 5vw, 34px)/1.15 var(--serif);
     color: var(--text);
     min-height: calc(1.15 * 24px);
+    text-shadow: 0 2px 14px rgba(0,0,0,0.55);   /* sempre sobre o .bg, nos dois modos */
   }
 
   /* Controles */
@@ -555,7 +579,6 @@
     margin: 0;
     text-align: left;
   }
-  .wrap[data-view="capa"] .now__title { text-shadow: 0 2px 14px rgba(0,0,0,0.55); }
 
   .wrap[data-view="capa"][data-state="playing"] .artist {
     display: block;
