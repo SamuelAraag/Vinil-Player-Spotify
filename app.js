@@ -15,7 +15,7 @@ const el = {
   topArtist: $(".top__artist"),
   bg:        $(".bg"),
   stage:     $(".stage"),
-  artistImg: $(".artist__img"),
+  artistImgs: [...document.querySelectorAll(".artist__img")],
   viewtoggle:$(".viewtoggle"),
   prev:      $('[data-act="prev"]'),
   main:      $('[data-act="toggle"]'),
@@ -82,9 +82,14 @@ function renderSnapshot(s) {
     sync: Date.now(),
     trackId: s.trackId || null,
     albumId: s.albumId || null,
+    artistId: s.artistId || null,
+    artistName: s.artistName || "",
   };
   el.disc.classList.remove("is-playing");
   reflectPlaying();
+  // a tela parada (pausado no celular, ou boot com o cenario salvo) tambem
+  // merece as imagens boas - o snapshot guarda o artista justamente pra isso
+  buscarImagensDoArtista(cur.artistId, cur.artistName);
 }
 
 // aplica a capa; com spin=true faz o giro de troca de album
@@ -134,18 +139,154 @@ async function artistImage(id) {
   } catch { artistImgCache = { id, url: "" }; }
   return artistImgCache.url;
 }
+// ---- painel do artista: duas camadas com crossfade ----
+// Uma camada esta visivel (.is-on), a outra fica pronta por baixo. Trocar a classe
+// de uma pra outra e a transicao. Sempre pre-carrega antes de trocar, pra nao
+// aparecer meia imagem.
 let artistUrl = "";
-function setArtistPhoto(url) {
-  if (url === artistUrl) return;
-  artistUrl = url;
-  if (!url) { el.wrap.dataset.hasArtist = "false"; el.artistImg.removeAttribute("src"); return; }
+let artistLayer = 0;
+function showArtistImage(url) {
+  if (!url) return;
+  const next = el.artistImgs[artistLayer ^ 1];
+  const prev = el.artistImgs[artistLayer];
   const pre = new Image();
   pre.onload = () => {
-    if (artistUrl !== url) return;
-    el.artistImg.src = url;
+    if (artistUrl !== url) return;              // ja mudou de novo enquanto carregava
+    next.src = url;
     el.wrap.dataset.hasArtist = "true";
+    next.classList.add("is-on");
+    prev.classList.remove("is-on");
+    artistLayer ^= 1;
   };
   pre.src = url;
+}
+
+// foto "oficial" do Spotify: entra na hora e e o piso do painel. Se a fanart.tv
+// responder depois, o rodizio assume por cima; se nao responder, fica essa.
+function setArtistPhoto(url) {
+  if (url === artistUrl) return;
+  stopArtistSlides();
+  artistUrl = url;
+  if (!url) {
+    el.wrap.dataset.hasArtist = "false";
+    el.artistImgs.forEach(i => i.removeAttribute("src"));
+    return;
+  }
+  showArtistImage(url);
+}
+
+// ---- imagens extras do artista (fanart.tv) ----
+// O Spotify entrega uma foto so, 640x640. A fanart.tv tem varias (1000x1000) e
+// fundos (1920x1080), mas indexa por MusicBrainz ID - que o Spotify nao fornece
+// em lugar nenhum. Entao o caminho e: nome do artista -> MusicBrainz -> mbid ->
+// fanart.tv. Sao dois servicos de terceiros no meio, entao nada disso bloqueia a
+// tela: a foto do Spotify ja esta no ar e so e substituida SE esse caminho der
+// certo. O mbid e as urls ficam num dicionario no localStorage, indexado pelo id
+// do artista no Spotify (estavel, ao contrario do nome), pra segunda vez em
+// diante nao custar requisicao nenhuma.
+// identificador do projeto na fanart.tv. Nao e credencial de ninguem: serve pra
+// eles contabilizarem uso por aplicacao, e por isso mora no cliente mesmo (igual
+// ao CLIENT_ID do Spotify, que o PKCE assume publico). Se precisar trocar, e
+// aqui - e o unico lugar.
+const FANART_PROJETO = "10ecb43d661dad793e6b0fb409dc65b7";
+const FANART_TRIES   = 3;
+const FANART_STORE   = "vp_fanart";
+
+let fanartCache = {};
+try { fanartCache = JSON.parse(localStorage.getItem(FANART_STORE) || "{}"); } catch {}
+function saveFanart(artistId, dados) {
+  fanartCache[artistId] = { ...(fanartCache[artistId] || {}), ...dados };
+  try { localStorage.setItem(FANART_STORE, JSON.stringify(fanartCache)); } catch {}
+}
+
+// nome -> mbid. null quando o MusicBrainz respondeu e nao achou ninguem (isso e
+// resposta, nao falha: fica gravado pra nao perguntar de novo).
+async function mbidDoArtista(artistId, nome) {
+  const hit = fanartCache[artistId];
+  if (hit && "mbid" in hit) return hit.mbid;
+  const url = "https://musicbrainz.org/ws/2/artist/?fmt=json&limit=1&query="
+            + encodeURIComponent(nome);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("musicbrainz " + r.status);
+  const d = await r.json();
+  const mbid = d.artists?.[0]?.id || null;
+  saveFanart(artistId, { mbid });
+  return mbid;
+}
+
+async function imagensDaFanart(artistId, nome) {
+  const hit = fanartCache[artistId];
+  if (hit && hit.urls) return hit.urls;
+  const mbid = await mbidDoArtista(artistId, nome);
+  if (!mbid) return [];
+  const params = new URLSearchParams({ api_key: FANART_PROJETO });
+  const r = await fetch(`https://webservice.fanart.tv/v3/music/${mbid}?${params}`);
+  if (r.status === 404) { saveFanart(artistId, { urls: [] }); return []; }  // sem ficha la
+  if (!r.ok) throw new Error("fanart " + r.status);
+  const d = await r.json();
+  // retratos primeiro (quadrados, enquadram melhor no painel alto), fundos depois
+  const urls = [...(d.artistthumb || []), ...(d.artistbackground || [])].map(x => x.url);
+  saveFanart(artistId, { urls });
+  return urls;
+}
+
+// Orquestracao: roda SO no modo capa, tenta no maximo FANART_TRIES vezes (uma por
+// tick) e entao desiste. So voltar a tentar quando mudar de artista ou de album.
+let fanartRun = { chave: null, tentativas: 0, encerrado: false };
+let fanartOcupado = false;
+
+async function buscarImagensDoArtista(artistId, nome) {
+  if (el.wrap.dataset.view !== "capa") return;   // no modo vinil o painel nem aparece
+  if (!artistId || !nome) return;
+
+  const chave = artistId + "|" + (cur.albumId || "");
+  if (chave !== fanartRun.chave) {               // mudou artista/album: recomeca do zero
+    fanartRun = { chave, tentativas: 0, encerrado: false };
+  }
+  if (fanartRun.encerrado || fanartOcupado) return;
+
+  fanartRun.tentativas++;
+  fanartOcupado = true;
+  try {
+    const urls = await imagensDaFanart(artistId, nome);
+    fanartRun.encerrado = true;                  // respondeu: com ou sem imagens, acabou
+    if (urls.length) startArtistSlides(urls, artistId);
+  } catch {
+    // falhou (rede, 503 do MusicBrainz, rate limit): o proximo tick tenta de novo
+    if (fanartRun.tentativas >= FANART_TRIES) fanartRun.encerrado = true;
+  } finally {
+    fanartOcupado = false;
+  }
+}
+
+// ---- rodizio das imagens da fanart.tv ----
+const SLIDE_MS = 9000;
+let slides = [], slideIdx = 0, slideTimer = null;
+let slidesFor = null;   // de qual artista sao as imagens que estao no ar
+
+function stopArtistSlides() {
+  clearInterval(slideTimer);
+  slideTimer = null;
+  slides = [];
+  slideIdx = 0;
+  slidesFor = null;
+}
+
+function startArtistSlides(urls, artistId) {
+  stopArtistSlides();
+  if (!urls.length) return;
+  slides = urls;
+  slidesFor = artistId;
+  artistUrl = urls[0];
+  showArtistImage(urls[0]);
+  // uma imagem so nao e rodizio; e com movimento reduzido fica na primeira
+  if (urls.length < 2 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  slideTimer = setInterval(() => {
+    if (el.wrap.dataset.view !== "capa" || el.wrap.dataset.state !== "playing") return;
+    slideIdx = (slideIdx + 1) % slides.length;
+    artistUrl = slides[slideIdx];
+    showArtistImage(slides[slideIdx]);
+  }, SLIDE_MS);
 }
 
 // visualizacao: "vinil" (default) ou "capa". animate=true faz o crossfade.
@@ -268,7 +409,8 @@ async function api(url, opts = {}, retried = false) {
 }
 
 // ---- estado local ----
-let cur = { isPlaying: false, progressMs: 0, durationMs: 0, sync: 0, trackId: null, albumId: null };
+let cur = { isPlaying: false, progressMs: 0, durationMs: 0, sync: 0, trackId: null, albumId: null,
+            artistId: null, artistName: "" };
 let album = { id: null, uri: null, tracks: [], failedAt: 0 };
 const ALBUM_RETRY_MS = 30000;   // quanto uma falha de album fica valendo antes de tentar de novo
 // play/pausa otimista: segura o valor ate a API confirmar, sem piscar
@@ -536,9 +678,15 @@ async function tickOnce() {
   if (el.topAlbum.textContent !== albumText) el.topAlbum.textContent = albumText;
   setBg(img);
   const artistId = it.artists?.[0]?.id || "";
+  // o nome do artista PRINCIPAL, nao a lista junta: quem vai pro MusicBrainz e
+  // esse. "Kendrick Lamar, Drake" ate acha o Kendrick, mas por sorte do score.
+  const artistName = it.artists?.[0]?.name || "";
+  if (slidesFor && slidesFor !== artistId) stopArtistSlides();   // trocou de artista
   if (artistId) {
     artistImage(artistId).then(url => {
-      setArtistPhoto(url);
+      // se o rodizio da fanart ja assumiu esse artista, ele manda; a foto do
+      // Spotify so pinta enquanto ele nao chegou (ou se nunca chegar)
+      if (!slides.length) setArtistPhoto(url);
       if (snapshot && snapshot.trackId === it.id) { snapshot.artistPhotoUrl = url; persistSnapshot(); }
     });
   } else {
@@ -559,15 +707,23 @@ async function tickOnce() {
     sync: Date.now(),
     trackId: it.id,
     albumId: it.album?.id ?? null,
+    artistId,
+    artistName,
   };
   reflectPlaying();
   setState("playing");
+
+  // depois do cur (a chave do fluxo usa o album). Nao tem await: se demorar ou
+  // falhar, a tela ja esta pintada com a foto do Spotify.
+  buscarImagensDoArtista(artistId, artistName);
 
   // guarda o cenario completo pro reload / pausa no celular
   snapshot = {
     trackId: it.id,
     trackName: it.name,
     artistNames: names,
+    artistId,
+    artistName,
     albumName,
     albumReleaseDate,
     albumId: it.album?.id || "",
@@ -615,7 +771,11 @@ setView(localStorage.getItem("view_mode") || "vinil");
 el.viewtoggle.addEventListener("click", () => {
   const v = el.wrap.dataset.view === "capa" ? "vinil" : "capa";
   setView(v, true);
-  if (v === "vinil") tick();   // a lista de faixas volta a existir: busca agora, sem esperar o intervalo
+  // cada modo tem um pedido proprio que so faz sentido nele: vinil precisa da
+  // lista de faixas, capa precisa das imagens do artista. Dispara na hora em vez
+  // de esperar o proximo tick.
+  if (v === "vinil") tick();
+  else buscarImagensDoArtista(cur.artistId, cur.artistName);
 });
 
 // tela cheia

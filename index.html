@@ -65,7 +65,12 @@
       <h1 class="now__title"></h1>
     </section>
 
-    <div class="artist"><img class="artist__img" alt=""></div>
+    <!-- duas camadas empilhadas: uma aparece, a outra entra por baixo e assume no
+         crossfade. Serve pra foto unica do Spotify e pro rodizio da fanart.tv. -->
+    <div class="artist">
+      <img class="artist__img is-on" alt="">
+      <img class="artist__img" alt="">
+    </div>
   </div>
 
   <div class="ctrls">

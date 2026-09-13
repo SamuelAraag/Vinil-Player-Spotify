@@ -90,7 +90,8 @@ Referência rápida pra não precisar reler o `app.js` inteiro toda vez. Tudo is
 | Nome da música | `.now__title` | `GET /v1/me/player/currently-playing` | `item.name` |
 | Capa do álbum | `.sleeve__img`, `.disc__label-img`, `.bg` (fundo desfocado) | `GET /v1/me/player/currently-playing` | `item.album.images[0].url` |
 | Tocando / pausado, progresso, duração | `data-playing`, braço do toca-discos, disco girando | `GET /v1/me/player/currently-playing` | `is_playing`, `progress_ms`, `item.duration_ms` |
-| Foto do artista (modo "capa") | `.artist__img` | `GET /v1/artists/{id}` (id vem de `item.artists[0].id` da currently-playing) | `images[0].url` |
+| Foto do artista (modo "capa") | `.artist__img` | `GET /v1/artists/{id}` (id vem de `item.artists[0].id` da currently-playing) | `images[0].url` (640×640, sempre uma só) |
+| Imagens extras do artista (só no modo "capa") | `.artist__img`, em rodízio | `GET musicbrainz.org/ws/2/artist/?query=<nome>` → `GET webservice.fanart.tv/v3/music/{mbid}` | `artists[0].id` (o mbid) → `artistthumb[]` (1000×1000) + `artistbackground[]` (1920×1080) |
 | Lista de faixas do álbum | `.tracks` | `GET /v1/albums/{id}?limit=50` (id = `item.album.id`) | `tracks.items[].name`, `.duration_ms`, `.id` |
 | Play / pause / próxima / anterior | botões `.ctrl` | `PUT /v1/me/player/play`, `/pause`, `POST /v1/me/player/next`, `/previous` | sem corpo relevante na resposta, erros por status (`404` sem device, `403` sem Premium, `429` rate limit) |
 | Tocar uma faixa específica do álbum | clique num item de `.tracks` | `PUT /v1/me/player/play` com `{ context_uri, offset: { position } }`, ou `{ uris: [...] }` se o álbum não tiver carregado | — |
@@ -110,3 +111,34 @@ transições do `.tonearm` no CSS, e com `prefers-reduced-motion` não há esper
 
 App do Spotify criado depois de nov/2024: **sem** audio-features (BPM, energia),
 recommendations, related-artists nem preview de 30s.
+
+## Imagens do artista: Spotify primeiro, fanart.tv depois
+
+O Spotify entrega **uma** foto de artista, 640×640. A [fanart.tv](https://fanart.tv)
+tem várias (1000×1000) e fundos largos (1920×1080) — mas indexa por **MusicBrainz ID**,
+que o Spotify não fornece em lugar nenhum. Daí o caminho em três passos:
+
+```
+nome do artista principal  ->  MusicBrainz  ->  mbid  ->  fanart.tv  ->  urls
+```
+
+Regras do fluxo (tudo em `app.js`, seção "imagens extras do artista"):
+
+- **A foto do Spotify entra primeiro e sozinha.** Ela é o piso: aparece na hora e só é
+  substituída *se* o caminho acima der certo. Nada disso bloqueia a tela.
+- **Só roda na visualização de capa.** No modo vinil o painel do artista nem existe.
+- **No máximo 3 tentativas**, uma por tick. Falhou as três, o fluxo encerra e só volta a
+  tentar quando **mudar de artista ou de álbum**.
+- **Dicionário em `localStorage` (`vp_fanart`)**, indexado pelo id do artista no Spotify
+  (estável, ao contrário do nome): guarda o mbid e as urls. Da segunda vez em diante o
+  artista não custa requisição nenhuma.
+- Com mais de uma imagem, elas entram em **rodízio com crossfade** a cada 9s, em duas
+  camadas empilhadas. Com `prefers-reduced-motion`, fica na primeira.
+
+Só o **artista principal** vai pra busca (`item.artists[0].name`) — mandar a lista junta
+("Kendrick Lamar, Drake") até funciona por score, mas é sorte, não critério.
+
+Dois cuidados conhecidos: o MusicBrainz **responde 503 com alguma frequência** (foi o que
+gastou 2 das 3 tentativas num teste real) e limita requisições por janela; e a busca por
+nome é aproximada, então artista de nome ambíguo pode casar errado. Os dois serviços
+mandam `access-control-allow-origin: *`, então funcionam direto do navegador, sem proxy.

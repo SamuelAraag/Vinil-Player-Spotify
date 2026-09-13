@@ -521,11 +521,21 @@ button:focus-visible, a:focus-visible {
 
 /* painel do artista: so aparece no modo capa */
 .artist { display: none; }
+/* as duas camadas ocupam o mesmo espaco; quem tem .is-on esta visivel. Trocar a
+   classe de uma pra outra e o crossfade - vale tanto pra foto do Spotify quanto
+   pro rodizio de imagens da fanart.tv. */
 .artist__img {
+  position: absolute;
+  inset: 0;
   width: 100%; height: 100%;
-  object-fit: cover; display: none;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 1.2s ease;
 }
-.wrap[data-has-artist="true"] .artist__img { display: block; }
+.wrap[data-has-artist="true"] .artist__img.is-on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .artist__img { transition: none; }
+}
 
 /* Visualizacao 2: capa. Split editorial (so quando ha faixa tocando):
    capa a esquerda sob o cabecalho, foto do artista alta a direita,
@@ -554,6 +564,7 @@ button:focus-visible, a:focus-visible {
 
 .wrap[data-view="capa"][data-state="playing"] .artist {
   display: block;
+  position: relative;          /* ancora as duas camadas de imagem */
   grid-column: 2; grid-row: 1 / 3;
   width: 100%; height: 100%;
   min-height: clamp(280px, 42vw, 560px);
