@@ -610,7 +610,7 @@
     </div>
   </header>
 
-  <div class="stage" aria-hidden="true">
+  <div class="stage">
     <div class="sleeve">
       <img class="sleeve__img" alt="">
       <div class="sleeve__ph">
@@ -621,7 +621,9 @@
         <span>capa do &aacute;lbum</span>
       </div>
     </div>
-    <div class="turntable">
+    <!-- disco, sombra e braco sao decoracao: o que eles representam (faixa,
+         album, se esta tocando) ja e texto em outro lugar da tela. -->
+    <div class="turntable" aria-hidden="true">
       <div class="disc-shadow"></div>
       <div class="disc3d">
         <div class="disc">
@@ -947,6 +949,19 @@ function reflectPlaying() {
   el.main.setAttribute("aria-label", cur.isPlaying ? "Pausar" : "Tocar");
 }
 
+// o que a lista <ol> esta mostrando agora. Sem isso, o tick reconstruia o DOM
+// inteiro a cada 5s - jogava fora foco de teclado e hover de quem estivesse
+// navegando a lista.
+let rendered = { albumId: null, trackId: null };
+
+// so move o aria-current de lugar, sem tocar no resto da lista
+function markCurrentTrack(trackId) {
+  el.tracks.querySelectorAll(".trk").forEach(b => {
+    if (trackId && b.dataset.id === trackId) b.setAttribute("aria-current", "true");
+    else b.removeAttribute("aria-current");
+  });
+}
+
 function renderTracks(items, currentId) {
   el.tracks.replaceChildren();
   items.forEach((t, i) => {
@@ -954,6 +969,7 @@ function renderTracks(items, currentId) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "trk";
+    b.dataset.id = t.id || "";
     b.setAttribute("aria-label", "Tocar " + t.name);
     if (t.id === currentId) b.setAttribute("aria-current", "true");
     const n = document.createElement("span");
@@ -979,7 +995,7 @@ async function loadAlbum(id) {
     album = {
       id,
       uri: a.uri,
-      tracks: a.tracks.items.map(t => ({ id: t.id, name: t.name, duration_ms: t.duration_ms })),
+      tracks: a.tracks.items.map(t => ({ id: t.id, name: t.name, duration_ms: t.duration_ms, uri: t.uri })),
     };
   } catch {
     album = { id, uri: null, tracks: [] };
@@ -1091,18 +1107,38 @@ async function toggle() {
   }
 }
 function playAlbumAt(i) {
+  const track = album.tracks[i];
+  // album.uri e null quando o GET do album falhou (ver loadAlbum). Nesse caso da
+  // pra tocar a faixa solta pela uri dela; sem nenhuma das duas nao ha o que
+  // enviar - antes isso virava um context_uri: null na requisicao.
+  const body = album.uri ? { context_uri: album.uri, offset: { position: i } }
+             : track?.uri ? { uris: [track.uri] }
+             : null;
+  if (!body) { el.hint.textContent = "Não deu para tocar essa faixa."; return; }
   sendControl(() => api("https://api.spotify.com/v1/me/player/play", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ context_uri: album.uri, offset: { position: i } }),
+    body: JSON.stringify(body),
   }));
 }
 
 // rate limit: para de bater na API ate a janela passar
 let backoffUntil = 0;
+// uma tick por vez: o setInterval de 5s e os setTimeout(tick) dos controles
+// podiam rodar concorrentes e gravar `cur` fora de ordem (a resposta mais lenta
+// chegando por ultimo e sobrescrevendo a mais nova).
+let ticking = false;
+// se o aviso de conexao esta na tela agora - so ele pode ser limpo no sucesso,
+// pra nao apagar um aviso de controle ("abra o Spotify em algum aparelho").
+let offlineHint = false;
 
 async function tick() {
-  if (fading || Date.now() < backoffUntil) return;  // nao mexe na tela durante o fade
+  if (ticking || fading || Date.now() < backoffUntil) return;  // nao mexe na tela durante o fade
+  ticking = true;
+  try { await tickOnce(); } finally { ticking = false; }
+}
+
+async function tickOnce() {
   let d;
   try {
     d = await api("https://api.spotify.com/v1/me/player/currently-playing");
@@ -1113,9 +1149,17 @@ async function tick() {
       return;                                         // nao mexe na tela
     }
     if (e.status === 401 || e.kind === "premium") { forceAuth(); return; }
+    // queda de rede com cenario ja na tela: mantem o que esta ali e avisa
+    // discreto, em vez de trocar o album inteiro por uma tela de erro.
+    if (el.wrap.dataset.state === "playing") {
+      el.hint.textContent = "Sem conexão com o Spotify. Tentando de novo…";
+      offlineHint = true;
+      return;
+    }
     setState("error", "Sem conexão com o Spotify.");
     return;
   }
+  if (offlineHint) { el.hint.textContent = ""; offlineHint = false; }
 
   if (!d || !d.item) {
     cur.isPlaying = false;
@@ -1223,10 +1267,20 @@ async function tick() {
 
   if (cur.albumId) {
     const tracks = await loadAlbum(cur.albumId);
-    if (tracks.length) renderTracks(tracks, cur.trackId);
+    if (tracks.length) {
+      // redesenha so quando muda de album; dentro do mesmo album, trocar de
+      // faixa e so mover o aria-current.
+      if (rendered.albumId !== cur.albumId) {
+        renderTracks(tracks, cur.trackId);
+      } else if (rendered.trackId !== cur.trackId) {
+        markCurrentTrack(cur.trackId);
+      }
+      rendered = { albumId: cur.albumId, trackId: cur.trackId };
+    }
     el.tracks.hidden = !tracks.length;
   } else {
     el.tracks.hidden = true;
+    rendered = { albumId: null, trackId: null };
   }
 }
 
