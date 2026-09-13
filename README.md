@@ -122,9 +122,13 @@ que o Spotify não fornece em lugar nenhum. Daí o caminho em três passos:
 nome do artista principal  ->  MusicBrainz  ->  mbid  ->  fanart.tv  ->  urls
 ```
 
-**O fluxo vem desligado**, e é ligado no botão de configurações (ícone à direita do
-cabeçalho) → "Ativar fanart com imagens do artista". A escolha fica no `localStorage`
-(`vp_fanart_on`). Desligado, nenhuma das duas APIs é chamada.
+**O fluxo vem ligado**, e é desligado no botão de configurações (o último do canto
+direito) → "Ativar fanart com imagens do artista". A escolha fica no `localStorage`
+(`vp_fanart_on`), que só guarda `"false"` quando você desliga — ausente vale como ligado.
+Desligado, nenhuma das duas APIs é chamada.
+
+Como `localStorage` é por origem, a escolha **não atravessa domínios**: desligar no
+`127.0.0.1` não desliga em `samuelaraag.github.io`, e vice-versa.
 
 Regras do fluxo (tudo em `app.js`, seção "imagens extras do artista"):
 

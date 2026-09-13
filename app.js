@@ -183,7 +183,7 @@ const FANART_TRIES   = 3;
 const FANART_STORE   = "vp_fanart";
 const FANART_PREF    = "vp_fanart_on";
 
-let fanartAtivo = localStorage.getItem(FANART_PREF) === "true";
+let fanartAtivo = localStorage.getItem(FANART_PREF) !== "false";
 
 let fanartCache = {};
 try { fanartCache = JSON.parse(localStorage.getItem(FANART_STORE) || "{}"); } catch {}
