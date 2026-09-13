@@ -24,15 +24,15 @@
         <svg class="vt-vinil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.6"/></svg>
         <svg class="vt-capa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
       </button>
+      <button type="button" class="fs" data-tip aria-label="Tela cheia">
+        <svg class="fs-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        <svg class="fs-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3M16 3v3a2 2 0 0 0 2 2h3M8 21v-3a2 2 0 0 0-2-2H3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+      </button>
       <button type="button" class="cfg" data-tip aria-label="Configura&ccedil;&otilde;es">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h8M16 18h4"/>
           <circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="14" cy="18" r="2"/>
         </svg>
-      </button>
-      <button type="button" class="fs" data-tip aria-label="Tela cheia">
-        <svg class="fs-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
-        <svg class="fs-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3M16 3v3a2 2 0 0 0 2 2h3M8 21v-3a2 2 0 0 0-2-2H3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
       </button>
     </div>
   </header>
@@ -117,7 +117,12 @@
     </span>
   </label>
 
-  <button type="button" class="btn cfg-fechar">fechar</button>
+  <!-- form method="dialog" fecha o modal sozinho e guarda em returnValue qual
+       botao foi usado. Esc fecha com returnValue vazio, ou seja: cancelar. -->
+  <form method="dialog" class="cfg-acoes">
+    <button value="cancelar" class="btn">cancelar</button>
+    <button value="salvar" class="btn primary">salvar</button>
+  </form>
 </dialog>
 
 <script src="app.js"></script>

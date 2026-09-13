@@ -30,7 +30,6 @@ const el = {
   cfg:       $(".cfg"),
   cfgModal:  $(".cfg-modal"),
   cfgFanart: $(".cfg-fanart"),
-  cfgFechar: $(".cfg-fechar"),
 };
 
 const fmt = ms => {
@@ -824,11 +823,16 @@ document.addEventListener("fullscreenchange", syncFs);
 syncFs();
 
 // ---- configuracoes ----
-el.cfgFanart.checked = fanartAtivo;
-el.cfg.addEventListener("click", () => el.cfgModal.showModal());
-el.cfgFechar.addEventListener("click", () => el.cfgModal.close());
+// O check e so intencao ate salvar: abrir sempre parte do que esta valendo, e
+// cancelar (ou Esc, que fecha com returnValue vazio) descarta sem aplicar.
+el.cfg.addEventListener("click", () => {
+  el.cfgFanart.checked = fanartAtivo;
+  el.cfgModal.showModal();
+});
 
-el.cfgFanart.addEventListener("change", () => {
+el.cfgModal.addEventListener("close", () => {
+  if (el.cfgModal.returnValue !== "salvar") return;      // cancelar/Esc: nada muda
+  if (el.cfgFanart.checked === fanartAtivo) return;      // salvou sem ter mexido
   fanartAtivo = el.cfgFanart.checked;
   try { localStorage.setItem(FANART_PREF, fanartAtivo ? "1" : "0"); } catch {}
   if (fanartAtivo) {

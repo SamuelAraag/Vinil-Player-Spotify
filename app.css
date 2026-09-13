@@ -626,4 +626,10 @@ button:focus-visible, a:focus-visible {
   font: 400 12px/1.5 var(--mono);
   color: var(--muted);
 }
-.cfg-fechar { display: block; margin: 24px 0 0 auto; }
+/* acoes do modal: primaria na direita, como e a convencao */
+.cfg-acoes {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
