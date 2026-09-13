@@ -292,14 +292,25 @@ async function buscarImagensDoArtista(artistId, nome) {
 // fica aberto enquanto o album toca, entao imagem trocando rapido vira agitacao
 // no canto do olho. 15s da uma media de 4 a 5 imagens por faixa.
 const SLIDE_MS = 15000;
-let slides = [], slideIdx = 0, slideTimer = null;
+const SLIDE_POS = "vp_slide_pos";
+let slides = [], slideTimer = null;
 let slidesFor = null;   // de qual artista sao as imagens que estao no ar
+
+// A posicao do rodizio anda sempre pra frente e sobrevive ao reload. Sem isso,
+// recarregar a tela recomecava na primeira imagem com o intervalo inteiro pela
+// frente - quem atualiza com alguma frequencia nunca chegava a ver as outras.
+let slidePos = Number(localStorage.getItem(SLIDE_POS)) || 0;
+
+function proximoSlide() {
+  slidePos = (slidePos + 1) % 1e6;
+  try { localStorage.setItem(SLIDE_POS, slidePos); } catch {}
+  return slides[slidePos % slides.length];
+}
 
 function stopArtistSlides() {
   clearInterval(slideTimer);
   slideTimer = null;
   slides = [];
-  slideIdx = 0;
   slidesFor = null;
 }
 
@@ -308,15 +319,16 @@ function startArtistSlides(urls, artistId) {
   if (!urls.length) return;
   slides = urls;
   slidesFor = artistId;
-  artistUrl = urls[0];
-  showArtistImage(urls[0]);
-  // uma imagem so nao e rodizio; e com movimento reduzido fica na primeira
+  // ja entra na proxima posicao: cada abertura da tela mostra uma imagem
+  // diferente, em vez de fixar a primeira
+  artistUrl = proximoSlide();
+  showArtistImage(artistUrl);
+  // uma imagem so nao e rodizio; e com movimento reduzido fica parado nela
   if (urls.length < 2 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   slideTimer = setInterval(() => {
     if (el.wrap.dataset.view !== "capa" || el.wrap.dataset.state !== "playing") return;
-    slideIdx = (slideIdx + 1) % slides.length;
-    artistUrl = slides[slideIdx];
-    showArtistImage(slides[slideIdx]);
+    artistUrl = proximoSlide();
+    showArtistImage(artistUrl);
   }, SLIDE_MS);
 }
 
