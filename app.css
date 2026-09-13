@@ -1,0 +1,577 @@
+/* Tema Spotify: verde de marca #1ED760 sobre o quase-preto #121212 */
+:root {
+  --bg: #121212;
+  --bg-alt: #181818;
+  --text: #ffffff;
+  --muted: #b3b3b3;
+  --primary: #1ed760;
+  --on-primary: #121212;
+  --border: rgba(255,255,255,0.12);
+  --glass: rgba(255,255,255,0.06);
+  --vinyl-body: #0a0a0a;
+  --vinyl-face: #161616;
+  --vinyl-groove: rgba(255,255,255,0.04);
+  --groove-pitch: 6px;   /* passo dos sulcos: menor = mais detalhe */
+  --radius: 12px;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --serif: "Playfair Display", Georgia, "Times New Roman", serif;
+  /* preenchimento quando falta uma imagem (capa ou artista) */
+  --panel-fallback:
+    radial-gradient(120% 90% at 18% 8%, rgba(30,215,96,0.22), transparent 58%),
+    linear-gradient(155deg, var(--bg-alt), var(--bg) 60%);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(120% 80% at 50% -18%, rgba(30,215,96,0.10), transparent 60%),
+    radial-gradient(120% 80% at 50% 118%, rgba(30,215,96,0.10), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+img { max-width: 100%; }
+button { font-family: inherit; }
+
+/* fundo: capa do album com desfoque gaussiano (mesma paleta do disco) */
+.bg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.12);
+  filter: blur(46px) saturate(1.25);
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  z-index: -1;
+  pointer-events: none;
+}
+.bg.on { opacity: 0.42; }
+.bg.on.bg--immersive { opacity: 0.5; }
+
+.wrap {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  /* .top agora e fixed, fora do fluxo - esse padding no topo so reserva o
+     espaco pra ele nao cobrir o conteudo. Rodape (controles) voltou a ser
+     normal, no fluxo, entao a base do padding e a original. */
+  padding-block: 132px 60px;
+  padding-inline: clamp(20px, 6vw, 110px);
+}
+
+/* Barra superior: fixa no topo da tela, no mesmo lugar em qualquer
+   visualizacao (vinil ou capa) e em qualquer estado - nao acompanha o
+   fluxo/altura do conteudo abaixo dela. */
+.top {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 28px clamp(20px, 6vw, 110px) 0;
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  font: 500 11px/1 var(--mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.top__l { display: flex; flex-direction: column; gap: 4px; }
+/* so artista e album aqui - a musica mora no titulo abaixo do vinil (now__title).
+   text-shadow: esse texto fica sempre sobre o .bg (a propria capa do album,
+   borrada) - contraste contra um token solido nao garante nada quando o fundo
+   e uma foto, porque a cor por tras varia pixel a pixel. */
+.top__artist,
+.top__album {
+  text-shadow: 0 2px 14px rgba(0,0,0,0.55);
+}
+.top__artist {
+  max-width: 46vw;
+  font: 600 clamp(22px, 6vw, 39px)/1.15 var(--serif);
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.top__artist:empty { display: none; }
+.top__album {
+  max-width: 46vw;
+  font: 600 17px/1.2 var(--mono);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.top__album:empty { display: none; }
+/* mobile/telas muito pequenas: o cabecalho empilha e centraliza (artista e
+   album, e os icones), em vez de disputar espaco com o lado direito. */
+@media (max-width: 640px) {
+  .top { flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+  .top__l { align-items: center; }
+  .top__artist, .top__album { max-width: 90vw; }
+  /* cabecalho empilhado fica bem mais alto (texto + icones embaixo) -
+     reserva mais espaco no topo pra nao cobrir o palco. */
+  .wrap { padding-top: 230px; }
+}
+.top__r { display: inline-flex; align-items: center; gap: 12px; }
+.fs, .viewtoggle {
+  display: inline-grid; place-items: center;
+  width: 30px; height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--glass);
+  color: var(--muted);
+  cursor: pointer;
+}
+.fs:hover, .viewtoggle:hover { color: var(--text); border-color: var(--primary); }
+.fs svg, .viewtoggle svg { width: 15px; height: 15px; }
+.wrap[data-fs="on"] .fs-enter { display: none; }
+.wrap[data-fs="off"] .fs-exit { display: none; }
+.wrap[data-view="vinil"] .viewtoggle .vt-vinil { display: none; }
+.wrap[data-view="capa"] .viewtoggle .vt-capa { display: none; }
+.wrap[data-fs="on"] {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Palco: capa em destaque, com o disco deitado logo abaixo */
+.stage {
+  --cover: clamp(280px, 40vw, 600px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 auto;
+  transition: opacity 0.26s ease, transform 0.26s ease;
+}
+.stage.switching { opacity: 0; transform: translateY(10px) scale(0.99); }
+@media (prefers-reduced-motion: reduce) {
+  .stage { transition: none; }
+  .stage.switching { opacity: 1; transform: none; }
+}
+.sleeve {
+  position: relative;
+  width: var(--cover);
+  aspect-ratio: 1;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--panel-fallback);
+  border: 1px solid var(--border);
+  box-shadow: 0 26px 54px -14px rgba(0,0,0,0.68);
+}
+/* troca de album: meia-volta num sentido so (0->90 some, -90->0 entra a nova) */
+.sleeve.flip { animation: coverflip 0.5s cubic-bezier(0.45, 0, 0.55, 1) both; }
+@keyframes coverflip {
+  0%   { transform: perspective(1000px) rotateY(0deg);   filter: brightness(1); }
+  49%  { transform: perspective(1000px) rotateY(-90deg); filter: brightness(0.62); }
+  50%  { transform: perspective(1000px) rotateY(90deg);  filter: brightness(0.62); }
+  100% { transform: perspective(1000px) rotateY(0deg);   filter: brightness(1); }
+}
+@keyframes coverfade { from { opacity: 0.15; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .sleeve.flip { animation: coverfade 0.4s ease both; }
+}
+.sleeve__img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: none;
+}
+.wrap[data-has-cover="true"] .sleeve__img { display: block; }
+.sleeve__ph {
+  position: absolute; inset: 0;
+  display: grid; place-content: center; justify-items: center; gap: 10px;
+  color: var(--muted);
+  font: 400 11px/1 var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.sleeve__ph svg { width: 34px; height: 34px; opacity: 0.7; }
+.wrap[data-has-cover="true"] .sleeve__ph { display: none; }
+
+.turntable {
+  position: relative;
+  width: var(--cover);
+  height: calc(var(--cover) * 0.34);
+}
+.disc3d {
+  position: absolute;
+  left: 50%; top: 33%;
+  width: calc(var(--cover) * 0.98);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) perspective(1000px) rotateX(76deg);
+}
+.disc3d::after {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(55% 40% at 34% 20%, rgba(255,255,255,0.16), transparent 62%);
+  pointer-events: none;
+  z-index: 1;
+}
+.disc {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle at 50% 50%,
+      transparent 0 calc(var(--groove-pitch) - 1px),
+      var(--vinyl-groove) calc(var(--groove-pitch) - 1px) var(--groove-pitch)),
+    radial-gradient(circle at 50% 50%, var(--vinyl-face) 0 20%, var(--vinyl-body) 20% 100%);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+/* sulcos dinamicos: mais grossos em tela pequena, mais finos em tela grande */
+@media (min-width: 1024px) { :root { --groove-pitch: 5px; } }
+@media (min-width: 1600px) { :root { --groove-pitch: 4px; } }
+@media (min-width: 2200px) { :root { --groove-pitch: 3px; } }
+.disc.is-playing { animation: spin 4s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .disc.is-playing { animation: none; }
+}
+.disc__label {
+  position: absolute; inset: 30%;
+  border-radius: 50%;
+  background: var(--primary);
+  overflow: hidden;
+}
+.disc__label-img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.disc__hole {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.35);
+  z-index: 1;
+}
+.disc-shadow {
+  position: absolute;
+  left: 50%; bottom: -6px;
+  width: calc(var(--cover) * 0.86); height: calc(var(--cover) * 0.06);
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.5), transparent 70%);
+  filter: blur(7px);
+  z-index: 0;
+}
+.tonearm {
+  position: absolute;
+  /* top e a altura da bolinha (o pivo): tudo o mais gira/pende dela. Mesmo
+     deslocamento que o .disc3d levou (-17%) pra acompanhar o disco e nao
+     desalinhar (a distancia entre os dois e o que faz a agulha "encostar"
+     na borda certa). */
+  right: -4%; top: 25%;
+  width: calc(var(--cover) * 0.52); height: 3px;
+  font-size: calc(var(--cover) * 0.045);   /* escala das pecas */
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.55), var(--muted) 45%, rgba(0,0,0,0.4));
+  transform-origin: right center;
+  transform: rotate(2deg);          /* parado: agulha levantada */
+  /* descida real e amortecida por um damper de silicone: lenta, desacelerando ate
+     encostar no sulco (~1s). Subida e mais rapida, sem esse amortecimento. */
+  transition: transform 1s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 2;
+}
+.wrap[data-playing="false"] .tonearm { transition: transform 0.6s ease-in; }
+/* base/pivo do braco */
+.tonearm__pivot {
+  position: absolute; right: -0.5em; top: 50%;
+  width: 1em; height: 1em; border-radius: 50%;
+  transform: translateY(-50%);
+  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.6), var(--muted) 45%, rgba(0,0,0,0.55));
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+/* contrapeso atras do pivo */
+.tonearm__weight {
+  position: absolute; right: -1.5em; top: 50%;
+  width: 0.8em; height: 0.55em; border-radius: 0.15em;
+  transform: translateY(-50%);
+  background: linear-gradient(180deg, rgba(255,255,255,0.4), var(--muted) 50%, rgba(0,0,0,0.45));
+}
+/* headshell na ponta, levemente angulado */
+.tonearm__head {
+  position: absolute; left: -0.9em; top: 50%;
+  width: 0.9em; height: 0.5em; border-radius: 0.12em;
+  transform: translateY(-50%) rotate(20deg);
+  transform-origin: right center;
+  background: linear-gradient(180deg, var(--text), var(--muted));
+}
+.tonearm__head::after {   /* agulha */
+  content: "";
+  position: absolute; left: 0.2em; bottom: -0.28em;
+  width: 0.12em; height: 0.32em; border-radius: 0 0 0.06em 0.06em;
+  background: var(--text);
+}
+/* tocando: agulha fixa no meio do percurso (nao acompanha mais o progresso da
+   faixa). -15deg e a metade entre -6deg (borda) e -24deg (perto do rotulo). */
+.wrap[data-playing="true"] .tonearm { transform: rotate(-15deg); }
+@media (prefers-reduced-motion: reduce) {
+  .tonearm, .wrap[data-playing="false"] .tonearm { transition: none; }
+}
+
+/* micro-tremor na ponta (headshell + agulha), nao no braco inteiro: e o cantilever
+   reagindo a modulacao do sulco, nao um balanco mecanico do braco. Paradas irregulares
+   pra nao parecer um sino perfeito. */
+@keyframes needleJitter {
+  0%   { transform: translateY(-50%) rotate(20deg); }
+  18%  { transform: translateY(calc(-50% - 0.9px)) rotate(21.1deg); }
+  41%  { transform: translateY(calc(-50% + 0.75px)) rotate(18.9deg); }
+  63%  { transform: translateY(-50%) rotate(20.75deg); }
+  82%  { transform: translateY(calc(-50% - 0.6px)) rotate(19.5deg); }
+  100% { transform: translateY(-50%) rotate(20deg); }
+}
+.wrap[data-playing="true"] .tonearm__head { animation: needleJitter 0.85s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .wrap[data-playing="true"] .tonearm__head { animation: none; } }
+
+/* Faixa atual: logo abaixo do vinil, o destaque e so a musica - artista e
+   album ja aparecem no bloco do topo, nao precisam se repetir aqui. */
+.now { text-align: center; margin-top: 8px; }
+.now__title {
+  margin: 0;
+  font: 500 clamp(24px, 5vw, 34px)/1.15 var(--serif);
+  color: var(--text);
+  min-height: calc(1.15 * 24px);
+  text-shadow: 0 2px 14px rgba(0,0,0,0.55);   /* sempre sobre o .bg, nos dois modos */
+}
+
+/* Controles */
+.ctrls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  margin-top: 22px;
+}
+.ctrl {
+  font: 500 12px/1 var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+}
+.ctrl:hover:not(:disabled) { color: var(--text); }
+.ctrl--main {
+  width: 62px; height: 62px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  letter-spacing: 0;      /* sem tracking: centraliza certo no circulo */
+  text-align: center;
+}
+.ctrl--main:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.ctrl:disabled { opacity: 0.35; cursor: not-allowed; }
+.hint {
+  text-align: center;
+  margin: 12px 0 0;
+  min-height: 14px;
+  font: 400 12px/1.3 var(--mono);
+  color: var(--primary);
+}
+
+/* Lista de faixas do álbum */
+.tracks {
+  list-style: none;
+  max-width: 620px;
+  margin: 26px auto 0;
+  padding: 0;
+}
+.tracks li { border-top: 1px solid var(--border); }
+.tracks li:last-child { border-bottom: 1px solid var(--border); }
+.trk {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 6px;
+  background: none;
+  border: none;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+.trk:hover { background: var(--glass); }
+.trk__n { font: 400 11px/1 var(--mono); color: var(--muted); }
+.trk__t { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trk__d { font: 400 11px/1 var(--mono); color: var(--muted); }
+.trk[aria-current="true"] .trk__t,
+.trk[aria-current="true"] .trk__n { color: var(--primary); }
+
+/* Estados nao-felizes */
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-top: 30px;
+  text-align: center;
+  font: 400 13px/1.4 var(--mono);
+  color: var(--muted);
+}
+.btn {
+  font: 500 12px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 11px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--glass);
+  color: var(--text);
+  cursor: pointer;
+}
+.btn.primary { background: var(--primary); border-color: transparent; color: var(--on-primary); }
+
+.disconnect {
+  display: block;
+  margin: 44px auto 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font: 400 11px/1 var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* atalho pro dashboard do app no Spotify. E ferramenta de manutencao, nao parte
+   do player: fica no rodape, menor e mais apagado que o "desconectar", e so
+   ganha contraste no hover/foco. */
+.apilink {
+  display: block;
+  width: fit-content;
+  margin: 18px auto 0;
+  color: var(--muted);
+  opacity: 0.45;
+  font: 400 10px/1 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+.apilink:hover, .apilink:focus-visible { opacity: 1; text-decoration: underline; }
+
+button:focus-visible, a:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* tooltip: usa o proprio aria-label do botao */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(aria-label);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%) translateY(-4px);
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: 400 11px/1 var(--mono);
+  letter-spacing: 0.03em;
+  text-transform: none;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 20;
+}
+[data-tip="up"]::after { top: auto; bottom: calc(100% + 8px); transform: translateX(-50%) translateY(4px); }
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (prefers-reduced-motion: reduce) { [data-tip]::after { transition: none; } }
+
+/* Visibilidade por estado */
+.retry, .connect-btn { display: none; }
+.wrap[data-state="error"] .retry { display: inline-flex; }
+.wrap[data-state="auth"] .connect-btn { display: inline-flex; }
+.status__text:empty { display: none; }
+.wrap[data-state="auth"] .stage,
+.wrap[data-state="auth"] .disconnect,
+.wrap[data-state="auth"] .top__l { display: none; }
+.wrap[data-state="playing"] .status,
+.wrap[data-state="idle"] .status { display: none; }
+.wrap:not([data-state="playing"]) .tracks,
+.wrap:not([data-state="playing"]) .hint,
+.wrap:not([data-state="playing"]) .ctrls { display: none; }
+.wrap:not([data-state="playing"]):not([data-state="idle"]) .now { display: none; }
+
+/* painel do artista: so aparece no modo capa */
+.artist { display: none; }
+.artist__img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: none;
+}
+.wrap[data-has-artist="true"] .artist__img { display: block; }
+
+/* Visualizacao 2: capa. Split editorial (so quando ha faixa tocando):
+   capa a esquerda sob o cabecalho, foto do artista alta a direita,
+   titulo e credito sob a capa. Sem faixa, cai no layout de coluna unica. */
+.wrap[data-view="capa"] .turntable,
+.wrap[data-view="capa"] .tracks { display: none; }
+
+.wrap[data-view="capa"][data-state="playing"] .stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.82fr);
+  column-gap: clamp(20px, 4vw, 56px);
+  row-gap: 20px;
+  align-items: start;
+  width: min(1000px, 100%);
+  margin: clamp(12px, 2vh, 26px) auto 0;
+}
+.wrap[data-view="capa"][data-state="playing"] .sleeve {
+  grid-column: 1; grid-row: 1;
+  width: 100%;
+}
+.wrap[data-view="capa"][data-state="playing"] .now {
+  grid-column: 1; grid-row: 2;
+  margin: 0;
+  text-align: left;
+}
+
+.wrap[data-view="capa"][data-state="playing"] .artist {
+  display: block;
+  grid-column: 2; grid-row: 1 / 3;
+  width: 100%; height: 100%;
+  min-height: clamp(280px, 42vw, 560px);
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: 0 26px 54px -14px rgba(0,0,0,0.6);
+  background: var(--panel-fallback);
+}
+.wrap[data-view="capa"][data-state="playing"] .ctrls { margin-top: 30px; }
+
+@media (max-width: 640px) {
+  .wrap[data-view="capa"][data-state="playing"] .stage { grid-template-columns: 1fr; }
+  .wrap[data-view="capa"][data-state="playing"] .artist {
+    grid-column: 1; grid-row: auto;
+    aspect-ratio: 4 / 5; height: auto; min-height: 0;
+  }
+  .wrap[data-view="capa"][data-state="playing"] .now {
+    grid-column: 1; grid-row: auto; text-align: center;
+  }
+}

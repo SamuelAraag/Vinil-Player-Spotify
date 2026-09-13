@@ -1,9 +1,16 @@
 # Vinil-Player-Spotify
 
 Widget web de "tocando agora" do Spotify, interface própria (não é o player embed
-oficial). Arquivo único (`index.html`, HTML + CSS + JS inline, sem build, sem servidor
-próprio) com um disco de vinil girando, braço de toca-discos animado com física
-simulada e a capa do álbum no selo central.
+oficial), com um disco de vinil girando, braço de toca-discos animado e a capa do
+álbum no selo central.
+
+Três arquivos estáticos, **sem build e sem servidor próprio** — é só servir a pasta:
+
+```
+index.html   estrutura (~90 linhas)
+app.css      estilo, tokens e as duas visualizações
+app.js       Spotify (PKCE, polling, controles) e a coreografia da agulha
+```
 
 ## Conceito
 
@@ -30,14 +37,50 @@ Spotify Developer Dashboard é exato):
 python3 -m http.server 8080
 ```
 
-Abre em `http://127.0.0.1:8080/`. App Spotify: **VinilPlayer**, fluxo PKCE (sem client
-secret, tudo no front). Escopos: `user-read-currently-playing user-read-playback-state
-user-modify-playback-state` (o segundo e o terceiro exigem conta Premium + um device
-ativo pra funcionar o controle).
+Abre em `http://127.0.0.1:8080/`.
+
+## O app no Spotify (onde mexer nas configurações)
+
+Dashboard: **https://developer.spotify.com/dashboard** — logar com a conta dona do app.
+Tem um atalho discreto pra cá no rodapé da própria tela do player ("api app spotify").
+
+| | |
+|---|---|
+| Nome do app | **VinilPlayer** |
+| Client ID | `07f8e60ada964056b6600e6f47c00716` — é público, fica no `app.js` |
+| Client secret | não tem: o fluxo é **PKCE**, 100% no front |
+| Escopos | `user-read-currently-playing`, `user-read-playback-state`, `user-modify-playback-state` |
+| Modo | **dev** — só as contas listadas em *User Management* conseguem usar |
+
+### Cadastrar uma rota nova (Redirect URI)
+
+O `app.js` monta o redirect como `location.origin + location.pathname`. Ou seja: **a URL
+exata de onde a página é servida**, com a barra final. Toda vez que isso mudar — outra
+porta, outra pasta, um deploy — a URL nova precisa ser cadastrada no dashboard, em
+*Edit Settings → Redirect URIs*, senão o login falha com `redirect_uri: Not matching
+configuration`.
+
+Exemplos do que conta como URL diferente e precisa de cadastro próprio:
+
+```
+http://127.0.0.1:8080/                      <- servindo de dentro da pasta
+http://127.0.0.1:8080/vinil-player-spotify/ <- servindo da pasta de cima
+https://meudominio.com/player/              <- deploy
+```
+
+### Mudou escopo? Suba o SCOPE_V
+
+A constante `SCOPE_V` no topo do `app.js` existe pra isso: quando a lista de escopos
+muda, subir o número faz o boot limpar os tokens e forçar todo mundo a reconectar. Sem
+isso, quem já estava logado continua com um token do escopo antigo e as chamadas novas
+falham com 401 — foi exatamente o bug de "desloga sozinho segundos depois de logar".
+
+Nota: `user-read-playback-state` está pedido mas **não é mais usado** — era só do
+controle de volume, que saiu. Tirar da lista exige subir o `SCOPE_V`.
 
 ## Mapa de dados: de onde vem cada informação
 
-Referência rápida pra não precisar reler o script inteiro toda vez. Tudo isso é
+Referência rápida pra não precisar reler o `app.js` inteiro toda vez. Tudo isso é
 `fetch` direto pra API REST do Spotify (`api()` cuida de token/refresh/erros).
 
 | O que aparece na tela | Elemento (seletor) | Requisição | Campo na resposta |
@@ -49,14 +92,19 @@ Referência rápida pra não precisar reler o script inteiro toda vez. Tudo isso
 | Tocando / pausado, progresso, duração | `data-playing`, braço do toca-discos, disco girando | `GET /v1/me/player/currently-playing` | `is_playing`, `progress_ms`, `item.duration_ms` |
 | Foto do artista (modo "capa") | `.artist__img` | `GET /v1/artists/{id}` (id vem de `item.artists[0].id` da currently-playing) | `images[0].url` |
 | Lista de faixas do álbum | `.tracks` | `GET /v1/albums/{id}?limit=50` (id = `item.album.id`) | `tracks.items[].name`, `.duration_ms`, `.id` |
-| Volume do device (pro fade play/pause) | — (`savedVolume` interno) | `GET /v1/me/player` | `device.volume_percent` |
 | Play / pause / próxima / anterior | botões `.ctrl` | `PUT /v1/me/player/play`, `/pause`, `POST /v1/me/player/next`, `/previous` | sem corpo relevante na resposta, erros por status (`404` sem device, `403` sem Premium, `429` rate limit) |
-| Volume (usado no fade) | — | `PUT /v1/me/player/volume?volume_percent=N` | — |
-| Tocar uma faixa específica do álbum | clique num item de `.tracks` | `PUT /v1/me/player/play` com `{ context_uri, offset: { position } }` | — |
+| Tocar uma faixa específica do álbum | clique num item de `.tracks` | `PUT /v1/me/player/play` com `{ context_uri, offset: { position } }`, ou `{ uris: [...] }` se o álbum não tiver carregado | — |
 
-Funções que fazem essas chamadas: `tick()` (currently-playing, roda a cada 5s),
-`artistImage()`, `loadAlbum()`, `getVolume()`/`setVolume()`, `sendControl()` (prev/
-next), `toggle()` (play/pause com fade de volume).
+Funções que fazem essas chamadas: `tick()` (currently-playing; roda a cada 5s **só
+com a aba visível**), `artistImage()`, `loadAlbum()` (só no modo vinil, onde a lista
+aparece), `sendControl()` (prev/next) e `toggle()` (play/pause).
+
+**O player não mexe no volume.** Não há nenhuma chamada a
+`PUT /me/player/volume` nem a `GET /me/player` — o controle de nível fica por conta
+do próprio Spotify. O que dá ritmo ao play/pause é o movimento da agulha: no play
+ela desce e o comando sai quando encosta no sulco (1000ms); no pause o disco para,
+a agulha sobe e só então o comando sai (600ms). Os dois tempos espelham as
+transições do `.tonearm` no CSS, e com `prefers-reduced-motion` não há espera.
 
 ## Limites conhecidos
 
