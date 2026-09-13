@@ -330,10 +330,9 @@
     width: 0.12em; height: 0.32em; border-radius: 0 0 0.06em 0.06em;
     background: var(--text);
   }
-  /* tocando: agulha no disco. --tonearm-angle desliza aos poucos de fora pra dentro
-     conforme a musica avanca (o braco segue o sulco espiralando ao centro); -15deg
-     e o meio-termo, usado quando a duracao da faixa e desconhecida. */
-  .wrap[data-playing="true"] .tonearm { transform: rotate(var(--tonearm-angle, -15deg)); }
+  /* tocando: agulha fixa no meio do percurso (nao acompanha mais o progresso da
+     faixa). -15deg e a metade entre -6deg (borda) e -24deg (perto do rotulo). */
+  .wrap[data-playing="true"] .tonearm { transform: rotate(-15deg); }
   @media (prefers-reduced-motion: reduce) {
     .tonearm, .wrap[data-playing="false"] .tonearm { transition: none; }
   }
@@ -930,36 +929,7 @@ function reflectPlaying() {
   el.wrap.dataset.playing = String(cur.isPlaying);
   el.main.textContent = cur.isPlaying ? "pause" : "play";
   el.main.setAttribute("aria-label", cur.isPlaying ? "Pausar" : "Tocar");
-  // o deslize do braco (updateTonearmSweep/reseatTonearm) e chamado por fora, por quem
-  // sabe se e so continuar tocando ou se a faixa trocou (ver tick() e toggle()).
 }
-
-// braco desliza aos poucos da borda pro centro conforme a musica avanca, do jeito
-// que uma agulha real segue o sulco espiralando (pesquisa: a variacao do angulo de
-// rastreio de fora pra dentro de um LP fica em torno de 14 graus ou mais; aqui 18).
-// So precisa da progressao que ja vem do currently-playing; nao chama a API de novo,
-// so recalcula com o relogio local.
-const TONEARM_OUTER = -6;   // grau no inicio da faixa (borda do disco)
-const TONEARM_INNER = -24;  // grau no fim da faixa (perto do rotulo)
-function updateTonearmSweep() {
-  if (!cur.isPlaying || !cur.durationMs) return;   // duracao desconhecida: fica no meio-termo (-15deg)
-  const elapsed = cur.progressMs + (Date.now() - cur.sync);
-  const frac = Math.min(1, Math.max(0, elapsed / cur.durationMs));
-  const angle = TONEARM_OUTER + (TONEARM_INNER - TONEARM_OUTER) * frac;
-  el.wrap.style.setProperty("--tonearm-angle", angle.toFixed(2) + "deg");
-}
-
-// troca de faixa com o disco ainda tocando: um braco real nunca "escorrega" de um
-// ponto do sulco pro outro sem sair do disco antes. Ergue rapido, e so depois de
-// fora do sulco reposiciona pra faixa nova (updateTonearmSweep entra com o angulo
-// inicial dela).
-let tonearmReseatTimer = null;
-function reseatTonearm() {
-  clearTimeout(tonearmReseatTimer);
-  el.wrap.style.setProperty("--tonearm-angle", "-1deg");
-  tonearmReseatTimer = setTimeout(updateTonearmSweep, 280);
-}
-setInterval(updateTonearmSweep, 1000);
 
 function renderTracks(items, currentId) {
   el.tracks.replaceChildren();
@@ -1087,7 +1057,6 @@ async function toggle() {
     if (willPlay) {
       el.disc.classList.add("is-playing");
       el.wrap.dataset.playing = "true";            // desce a agulha
-      updateTonearmSweep();                        // retoma do angulo de onde parou
       el.main.textContent = "pause";
       el.main.setAttribute("aria-label", "Pausar");
       await delay(650);                            // deixa a agulha pousar (descida ~1s) antes do som
@@ -1201,10 +1170,6 @@ async function tick() {
     else pending = null;                                     // deu o tempo: aceita a API
   }
 
-  // so conta como "troca de faixa com o braco no disco" se ele JA estava tocando;
-  // se veio do repouso (pausado/1o play), e a descida normal que cuida disso.
-  const trackChanged = cur.isPlaying && playing && cur.trackId && cur.trackId !== it.id;
-
   cur = {
     isPlaying: playing,
     progressMs: d.progress_ms ?? 0,
@@ -1214,7 +1179,6 @@ async function tick() {
     albumId: it.album?.id ?? null,
   };
   reflectPlaying();
-  if (trackChanged) reseatTonearm(); else updateTonearmSweep();
   setState("playing");
 
   // pega o volume do device uma vez, pra primeira pausa ja ter o fade
