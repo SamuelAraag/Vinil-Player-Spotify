@@ -390,10 +390,6 @@ class ApiError extends Error {
   constructor(kind, status) { super(kind); this.kind = kind; this.status = status; }
 }
 
-// pilha das ultimas requisicoes que falharam, mostrada no modal de erro. Le
-// error.message do corpo da resposta - o status sozinho (ex: 403) cobre
-// motivos bem diferentes (sem Premium, fora do User Management, escopo,
-// device), e so o texto que o Spotify manda distingue qual e o caso real.
 const REQ_ERR_MAX = 6;
 let requestErrors = [];
 async function logReqErr(url, r) {
