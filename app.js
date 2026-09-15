@@ -2,11 +2,12 @@ const CLIENT_ID = "07f8e60ada964056b6600e6f47c00716"; // do Samuel Araag - usado
 const CLIENT_ID_STORE = "vp_client_id";
 const clientId = () => localStorage.getItem(CLIENT_ID_STORE) || CLIENT_ID;
 const REDIRECT  = location.origin + location.pathname; // cadastre essa URL exata no dashboard
+const SAMUEL_REDIRECT_OFICIAL = "https://samuelaraag.github.io/Vinil-Player-Spotify/";
 const SAMUEL_REDIRECTS = [
   "http://127.0.0.1:8080/",
   "http://127.0.0.1:5501/vinil-player-spotify/",
   "https://127.0.0.1:8443/",
-  "https://samuelaraag.github.io/Vinil-Player-Spotify/",
+  SAMUEL_REDIRECT_OFICIAL,
 ];
 const SCOPE     = "user-read-currently-playing user-read-playback-state user-modify-playback-state";
 const SCOPE_V   = "3"; // sobe quando muda o escopo: forca reconexao
@@ -822,7 +823,7 @@ el.clientidInput.addEventListener("input", () => {
 });
 el.clientidSamuel.addEventListener("click", () => {
   if (!SAMUEL_REDIRECTS.includes(REDIRECT)) {
-    return clientIdErro("Essa URL (" + REDIRECT + ") não está cadastrada no app do Samuel. Sirva de: " + SAMUEL_REDIRECTS.join(", "));
+    return clientIdErro("Essa URL não está cadastrada no app do Samuel. Use " + SAMUEL_REDIRECT_OFICIAL);
   }
   localStorage.removeItem(CLIENT_ID_STORE); // senao um client id proprio salvo antes continuaria valendo
   el.clientidModal.close();
