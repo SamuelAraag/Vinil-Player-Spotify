@@ -67,7 +67,9 @@ function setState(s, msg) {
   el.statusText.textContent = msg || "";   // nunca deixa mensagem antiga presa
 }
 function forceAuth() {
-  ["access_token", "refresh_token", "expires_at", "vp_snapshot"].forEach(k => localStorage.removeItem(k));
+  try {
+    ["access_token", "refresh_token", "expires_at", "vp_snapshot"].forEach(k => localStorage.removeItem(k));
+  } catch {}
   snapshot = null;
   setState("auth");
 }
@@ -340,12 +342,18 @@ async function challenge(v) {
 }
 async function login() {
   const verifier = rand(64);
-  localStorage.setItem("pkce_verifier", verifier);
-  const p = new URLSearchParams({
-    client_id: clientId(), response_type: "code", redirect_uri: REDIRECT,
-    scope: SCOPE, code_challenge_method: "S256",
-    code_challenge: await challenge(verifier),
-  });
+  try { localStorage.setItem("pkce_verifier", verifier); } catch {}
+  let p;
+  try {
+    p = new URLSearchParams({
+      client_id: clientId(), response_type: "code", redirect_uri: REDIRECT,
+      scope: SCOPE, code_challenge_method: "S256",
+      code_challenge: await challenge(verifier),
+    });
+  } catch {
+    setState("auth", "Não deu para iniciar a conexão: este endereço precisa ser https:// ou localhost.");
+    return;
+  }
   location.href = "https://accounts.spotify.com/authorize?" + p;
 }
 async function tokenRequest(body) {
@@ -360,9 +368,13 @@ async function tokenRequest(body) {
     e.tokenFail = true;
     throw e;                       // NAO grava expires_at num pedido que falhou
   }
-  localStorage.setItem("access_token", t.access_token);
-  if (t.refresh_token) localStorage.setItem("refresh_token", t.refresh_token);
-  localStorage.setItem("expires_at", Date.now() + (t.expires_in ?? 3600) * 1000);
+  try {
+    localStorage.setItem("access_token", t.access_token);
+    if (t.refresh_token) localStorage.setItem("refresh_token", t.refresh_token);
+    localStorage.setItem("expires_at", Date.now() + (t.expires_in ?? 3600) * 1000);
+  } catch {
+    throw new Error("storage_failed");
+  }
 }
 const exchange = code => tokenRequest({
   client_id: clientId(), grant_type: "authorization_code",
@@ -394,7 +406,9 @@ async function logReqErr(url, r) {
 
 // sessao morta: limpa e volta pra tela de conexao com aviso
 function sessionExpired() {
-  ["access_token", "refresh_token", "expires_at"].forEach(k => localStorage.removeItem(k));
+  try {
+    ["access_token", "refresh_token", "expires_at"].forEach(k => localStorage.removeItem(k));
+  } catch {}
   setState("auth", "Sessão expirada. Conecte de novo.");
 }
 
@@ -584,7 +598,7 @@ async function toggle() {
         await api("https://api.spotify.com/v1/me/player/pause", { method: "PUT" });
       } catch (e) { showControlErr(e); }
     }
-  } finally {
+  } catch {} finally {
     armMoving = false;
     if (pending) pending.until = Date.now() + 3500;
     setTimeout(tick, 900);
@@ -620,7 +634,7 @@ async function tick() {
   if (ticking || armMoving || Date.now() < backoffUntil) return;  // nao mexe na tela no meio do movimento da agulha
   if (el.wrap.dataset.state === "auth") return;                // deslogado: nao adianta pedir
   ticking = true;
-  try { await tickOnce(); } finally { ticking = false; }
+  try { await tickOnce(); } catch {} finally { ticking = false; }
 }
 
 // o polling so roda com a aba visivel: em background ninguem esta vendo a tela,
@@ -822,7 +836,7 @@ function openClientIdModal() {
   el.clientidInput.value = localStorage.getItem(CLIENT_ID_STORE) || "";
   el.clientidInput.removeAttribute("aria-invalid");
   el.clientidErro.hidden = true;
-  el.clientidModal.showModal();
+  if (!el.clientidModal.open) el.clientidModal.showModal();
   el.clientidInput.focus();
 }
 el.clientidInput.addEventListener("input", () => {
@@ -833,7 +847,7 @@ el.clientidSamuel.addEventListener("click", () => {
   if (!SAMUEL_REDIRECTS.includes(REDIRECT)) {
     return clientIdErro("Essa URL não está cadastrada no app do Samuel. Use ", SAMUEL_REDIRECT_OFICIAL);
   }
-  localStorage.removeItem(CLIENT_ID_STORE); // senao um client id proprio salvo antes continuaria valendo
+  try { localStorage.removeItem(CLIENT_ID_STORE); } catch {} // senao um client id proprio salvo antes continuaria valendo
   el.clientidModal.close();
   login();
 });
@@ -844,7 +858,7 @@ el.clientidForm.addEventListener("submit", e => {
   if (!CLIENT_ID_FORMATO.test(v)) {
     return clientIdErro("Esse client id não parece válido: precisa ter 32 caracteres (letras e números), copiados direto do dashboard do Spotify.");
   }
-  localStorage.setItem(CLIENT_ID_STORE, v);
+  try { localStorage.setItem(CLIENT_ID_STORE, v); } catch {}
   el.clientidModal.close();
   login();
 });
@@ -865,7 +879,7 @@ function openErrModal() {
     li.textContent = entry;
     el.errStack.append(li);
   });
-  el.errModal.showModal();
+  if (!el.errModal.open) el.errModal.showModal();
 }
 
 // troca de visualizacao
@@ -884,7 +898,7 @@ function syncFs() {
   el.fs.setAttribute("aria-label", on ? "Sair da tela cheia" : "Tela cheia");
 }
 el.fs.addEventListener("click", () => {
-  if (document.fullscreenElement) document.exitFullscreen();
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   else document.documentElement.requestFullscreen?.().catch(() => {});
 });
 document.addEventListener("fullscreenchange", syncFs);
@@ -892,7 +906,7 @@ syncFs();
 
 el.cfg.addEventListener("click", () => {
   el.cfgFanart.checked = fanartAtivo;
-  el.cfgModal.showModal();
+  if (!el.cfgModal.open) el.cfgModal.showModal();
 });
 
 el.cfgModal.addEventListener("close", () => {
@@ -921,8 +935,10 @@ document.addEventListener("keydown", e => {
 
 // ---- boot ----
 if (localStorage.getItem("scope_v") !== SCOPE_V) {
-  ["access_token", "refresh_token", "expires_at"].forEach(k => localStorage.removeItem(k));
-  localStorage.setItem("scope_v", SCOPE_V);
+  try {
+    ["access_token", "refresh_token", "expires_at"].forEach(k => localStorage.removeItem(k));
+    localStorage.setItem("scope_v", SCOPE_V);
+  } catch {}
 }
 // cenario da ultima sessao: pinta na hora, pausado, com todos os dados
 try {
