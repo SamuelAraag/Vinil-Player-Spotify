@@ -624,6 +624,8 @@ button:focus-visible, a:focus-visible {
   font: 500 12px/1.4 var(--mono);
   color: var(--text);
 }
+.clientid-erro a { color: var(--primary); text-decoration: underline; }
+.clientid-erro a:hover, .clientid-erro a:focus-visible { text-decoration: none; }
 .clientid-form .clientid-salvar { width: 100%; margin-top: 10px; }
 
 .clientid-usar-samuel { width: 100%; margin-top: 28px; }
