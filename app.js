@@ -804,9 +804,17 @@ el.disconnect.addEventListener("click", forceAuth);
 // dele em User Management). So o proprio fica salvo (CLIENT_ID_STORE) - usar
 // o do Samuel nao grava nada, o clientId() ja cai nele por padrao.
 const CLIENT_ID_FORMATO = /^[0-9a-f]{32}$/i;
-function clientIdErro(msg) {
+function clientIdErro(msg, url) {
   el.clientidInput.setAttribute("aria-invalid", "true");
-  el.clientidErro.textContent = msg;
+  el.clientidErro.replaceChildren(document.createTextNode(msg));
+  if (url) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = url;
+    el.clientidErro.append(a);
+  }
   el.clientidErro.hidden = false;
   el.clientidInput.focus();
 }
@@ -823,7 +831,7 @@ el.clientidInput.addEventListener("input", () => {
 });
 el.clientidSamuel.addEventListener("click", () => {
   if (!SAMUEL_REDIRECTS.includes(REDIRECT)) {
-    return clientIdErro("Essa URL não está cadastrada no app do Samuel. Use " + SAMUEL_REDIRECT_OFICIAL);
+    return clientIdErro("Essa URL não está cadastrada no app do Samuel. Use ", SAMUEL_REDIRECT_OFICIAL);
   }
   localStorage.removeItem(CLIENT_ID_STORE); // senao um client id proprio salvo antes continuaria valendo
   el.clientidModal.close();

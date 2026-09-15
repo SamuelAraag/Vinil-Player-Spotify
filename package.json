@@ -1,0 +1,7 @@
+{
+  "name": "vinil-player-spotify",
+  "private": true,
+  "scripts": {
+    "app": "bash scripts/rodar-https.sh"
+  }
+}
