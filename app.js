@@ -936,7 +936,14 @@ if (snapshot && snapshot.coverUrl && localStorage.getItem("access_token")) {
 (async () => {
   const code = new URLSearchParams(location.search).get("code");
   if (code) {
-    try { await exchange(code); } catch {}
+    try {
+      await exchange(code);
+    } catch {
+      localStorage.removeItem("pkce_verifier");
+      history.replaceState({}, "", REDIRECT);
+      setState("auth", "Não deu para conectar: o código expirou ou já foi usado. Tente de novo.");
+      return;
+    }
     history.replaceState({}, "", REDIRECT);
   }
   if (!localStorage.getItem("access_token")) { setState("auth"); return; }
