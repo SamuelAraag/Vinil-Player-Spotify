@@ -100,6 +100,43 @@
      rel="noopener noreferrer">api app spotify</a>
 </main>
 
+<dialog class="clientid-modal" aria-labelledby="clientid-titulo">
+  <h2 class="clientid-modal__titulo" id="clientid-titulo">conectar ao spotify</h2>
+
+  <form class="clientid-form">
+    <label class="clientid-label" for="clientid-input">client id do seu app no spotify</label>
+    <input type="text" id="clientid-input" class="clientid-input" autocomplete="off" spellcheck="false"
+      placeholder="ex.: 0000aaaa1111bbbb2222cccc3333dddd">
+    <small class="clientid-erro" role="alert" hidden>Cole o client id antes de continuar.</small>
+    <button type="submit" class="btn primary clientid-salvar">salvar e conectar</button>
+  </form>
+
+  <button type="button" class="btn clientid-usar-samuel">J&aacute; tenho cadastro com Samuel Araag</button>
+  <small class="clientid-aviso">S&oacute; funciona se o e-mail da sua conta Spotify j&aacute; estiver
+  cadastrado por ele no app.</small>
+  <small class="clientid-aviso">A vers&atilde;o oficial est&aacute; em
+  <a href="https://samuelaraag.github.io/Vinil-Player-Spotify/" target="_blank" rel="noopener noreferrer">samuelaraag.github.io/Vinil-Player-Spotify</a></small>
+</dialog>
+
+<dialog class="err-modal" aria-labelledby="err-titulo">
+  <h2 class="err-modal__titulo" id="err-titulo">n&atilde;o deu pra conectar</h2>
+
+  <ul class="err-stack"></ul>
+
+  <p class="err-modal__texto">Confira, nessa ordem:</p>
+  <ol class="err-checklist">
+    <li>a conta Spotify usada tem <strong>Premium</strong>. A API de reprodu&ccedil;&atilde;o do
+    Spotify s&oacute; funciona com Premium, mesmo s&oacute; pra ler o que est&aacute; tocando</li>
+    <li>o e-mail dessa conta est&aacute; cadastrado em <strong>User Management</strong>, no
+    dashboard Spotify de quem criou o client ID usado no login (do Samuel Araag, se foi essa a
+    op&ccedil;&atilde;o escolhida)</li>
+  </ol>
+
+  <form method="dialog" class="err-acoes">
+    <button value="fechar" class="btn primary">entendi</button>
+  </form>
+</dialog>
+
 <dialog class="cfg-modal" aria-labelledby="cfg-titulo">
   <h2 class="cfg-modal__titulo" id="cfg-titulo">configura&ccedil;&otilde;es</h2>
 

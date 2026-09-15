@@ -1,4 +1,6 @@
-const CLIENT_ID = "07f8e60ada964056b6600e6f47c00716";
+const CLIENT_ID = "07f8e60ada964056b6600e6f47c00716"; // do Samuel Araag - usado quando o usuario nao tem o proprio
+const CLIENT_ID_STORE = "vp_client_id";
+const clientId = () => localStorage.getItem(CLIENT_ID_STORE) || CLIENT_ID;
 const REDIRECT  = location.origin + location.pathname; // cadastre essa URL exata no dashboard
 const SCOPE     = "user-read-currently-playing user-read-playback-state user-modify-playback-state";
 const SCOPE_V   = "3"; // sobe quando muda o escopo: forca reconexao
@@ -30,6 +32,13 @@ const el = {
   cfg:       $(".cfg"),
   cfgModal:  $(".cfg-modal"),
   cfgFanart: $(".cfg-fanart"),
+  clientidModal:  $(".clientid-modal"),
+  clientidSamuel: $(".clientid-usar-samuel"),
+  clientidForm:   $(".clientid-form"),
+  clientidInput:  $(".clientid-input"),
+  clientidErro:   $(".clientid-erro"),
+  errModal: $(".err-modal"),
+  errStack: $(".err-stack"),
 };
 
 const fmt = ms => {
@@ -51,7 +60,9 @@ function setState(s, msg) {
   el.statusText.textContent = msg || "";   // nunca deixa mensagem antiga presa
 }
 function forceAuth() {
-  ["access_token", "refresh_token", "expires_at", "vp_snapshot"].forEach(k => localStorage.removeItem(k));
+  try {
+    ["access_token", "refresh_token", "expires_at", "vp_snapshot"].forEach(k => localStorage.removeItem(k));
+  } catch {}
   snapshot = null;
   setState("auth");
 }
@@ -324,12 +335,18 @@ async function challenge(v) {
 }
 async function login() {
   const verifier = rand(64);
-  localStorage.setItem("pkce_verifier", verifier);
-  const p = new URLSearchParams({
-    client_id: CLIENT_ID, response_type: "code", redirect_uri: REDIRECT,
-    scope: SCOPE, code_challenge_method: "S256",
-    code_challenge: await challenge(verifier),
-  });
+  try { localStorage.setItem("pkce_verifier", verifier); } catch {}
+  let p;
+  try {
+    p = new URLSearchParams({
+      client_id: clientId(), response_type: "code", redirect_uri: REDIRECT,
+      scope: SCOPE, code_challenge_method: "S256",
+      code_challenge: await challenge(verifier),
+    });
+  } catch {
+    setState("auth", "Não deu para iniciar a conexão: este endereço precisa ser https:// ou localhost.");
+    return;
+  }
   location.href = "https://accounts.spotify.com/authorize?" + p;
 }
 async function tokenRequest(body) {
@@ -344,17 +361,21 @@ async function tokenRequest(body) {
     e.tokenFail = true;
     throw e;                       // NAO grava expires_at num pedido que falhou
   }
-  localStorage.setItem("access_token", t.access_token);
-  if (t.refresh_token) localStorage.setItem("refresh_token", t.refresh_token);
-  localStorage.setItem("expires_at", Date.now() + (t.expires_in ?? 3600) * 1000);
+  try {
+    localStorage.setItem("access_token", t.access_token);
+    if (t.refresh_token) localStorage.setItem("refresh_token", t.refresh_token);
+    localStorage.setItem("expires_at", Date.now() + (t.expires_in ?? 3600) * 1000);
+  } catch {
+    throw new Error("storage_failed");
+  }
 }
 const exchange = code => tokenRequest({
-  client_id: CLIENT_ID, grant_type: "authorization_code",
+  client_id: clientId(), grant_type: "authorization_code",
   code, redirect_uri: REDIRECT,
   code_verifier: localStorage.getItem("pkce_verifier"),
 });
 const refresh = () => tokenRequest({
-  client_id: CLIENT_ID, grant_type: "refresh_token",
+  client_id: clientId(), grant_type: "refresh_token",
   refresh_token: localStorage.getItem("refresh_token"),
 });
 
@@ -362,9 +383,21 @@ class ApiError extends Error {
   constructor(kind, status) { super(kind); this.kind = kind; this.status = status; }
 }
 
+const REQ_ERR_MAX = 6;
+let requestErrors = [];
+async function logReqErr(url, r) {
+  const path = url.replace("https://api.spotify.com/v1/", "");
+  let msg = "";
+  try { msg = (await r.clone().json())?.error?.message || ""; } catch {}
+  requestErrors.push(msg ? `${path} · ${r.status} · ${msg}` : `${path} · ${r.status}`);
+  if (requestErrors.length > REQ_ERR_MAX) requestErrors.shift();
+}
+
 // sessao morta: limpa e volta pra tela de conexao com aviso
 function sessionExpired() {
-  ["access_token", "refresh_token", "expires_at"].forEach(k => localStorage.removeItem(k));
+  try {
+    ["access_token", "refresh_token", "expires_at"].forEach(k => localStorage.removeItem(k));
+  } catch {}
   setState("auth", "Sessão expirada. Conecte de novo.");
 }
 
@@ -398,15 +431,16 @@ async function api(url, opts = {}, retried = false) {
     return api(url, opts, true);
   }
   if (r.status === 204) return null;
-  if (r.status === 404) throw new ApiError("no_device", 404);
-  if (r.status === 403) throw new ApiError("premium", 403);
+  if (r.status === 404) { await logReqErr(url, r); throw new ApiError("no_device", 404); }
+  if (r.status === 403) { await logReqErr(url, r); throw new ApiError("premium", 403); }
   if (r.status === 429) {
+    await logReqErr(url, r);
     const ra = parseInt(r.headers.get("Retry-After") || "", 10);
     const e = new ApiError("rate", 429);
     e.retryAfter = Number.isFinite(ra) ? ra : 0;
     throw e;
   }
-  if (!r.ok) throw new ApiError("http", r.status);
+  if (!r.ok) { await logReqErr(url, r); throw new ApiError("http", r.status); }
   const ct = r.headers.get("content-type") || "";
   return ct.includes("json") ? r.json() : null;
 }
@@ -553,7 +587,7 @@ async function toggle() {
         await api("https://api.spotify.com/v1/me/player/pause", { method: "PUT" });
       } catch (e) { showControlErr(e); }
     }
-  } finally {
+  } catch {} finally {
     armMoving = false;
     if (pending) pending.until = Date.now() + 3500;
     setTimeout(tick, 900);
@@ -589,7 +623,7 @@ async function tick() {
   if (ticking || armMoving || Date.now() < backoffUntil) return;  // nao mexe na tela no meio do movimento da agulha
   if (el.wrap.dataset.state === "auth") return;                // deslogado: nao adianta pedir
   ticking = true;
-  try { await tickOnce(); } finally { ticking = false; }
+  try { await tickOnce(); } catch {} finally { ticking = false; }
 }
 
 // o polling so roda com a aba visivel: em background ninguem esta vendo a tela,
@@ -615,7 +649,8 @@ async function tickOnce() {
       backoffUntil = Date.now() + ((e.retryAfter || 8) * 1000) + 500;
       return;                                         // nao mexe na tela
     }
-    if (e.status === 401 || e.kind === "premium") { forceAuth(); return; }
+    if (e.kind === "premium") { openErrModal(); forceAuth(); return; }
+    if (e.status === 401) { forceAuth(); return; }
     // queda de rede com cenario ja na tela: mantem o que esta ali e avisa
     // discreto, em vez de trocar o album inteiro por uma tela de erro.
     if (el.wrap.dataset.state === "playing") {
@@ -764,8 +799,74 @@ el.prev.addEventListener("click", prev);
 el.next.addEventListener("click", next);
 el.main.addEventListener("click", toggle);
 el.retry.addEventListener("click", () => { setState("loading", "Carregando…"); tick(); });
-el.connectBtn.addEventListener("click", login);
+el.connectBtn.addEventListener("click", openClientIdModal);
 el.disconnect.addEventListener("click", forceAuth);
+
+// pergunta, antes de ir pro Spotify, qual client_id usar: um proprio do
+// usuario (prioritario, input em foco) ou o do Samuel (exige cadastro previo
+// dele em User Management). So o proprio fica salvo (CLIENT_ID_STORE) - usar
+// o do Samuel nao grava nada, o clientId() ja cai nele por padrao.
+const CLIENT_ID_FORMATO = /^[0-9a-f]{32}$/i;
+function clientIdErro(msg, url) {
+  el.clientidInput.setAttribute("aria-invalid", "true");
+  el.clientidErro.replaceChildren(document.createTextNode(msg));
+  if (url) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = url;
+    el.clientidErro.append(a);
+  }
+  el.clientidErro.hidden = false;
+  el.clientidInput.focus();
+}
+function openClientIdModal() {
+  el.clientidInput.value = localStorage.getItem(CLIENT_ID_STORE) || "";
+  el.clientidInput.removeAttribute("aria-invalid");
+  el.clientidErro.hidden = true;
+  if (!el.clientidModal.open) el.clientidModal.showModal();
+  el.clientidInput.focus();
+}
+el.clientidInput.addEventListener("input", () => {
+  el.clientidInput.removeAttribute("aria-invalid");
+  el.clientidErro.hidden = true;
+});
+el.clientidSamuel.addEventListener("click", () => {
+  try { localStorage.removeItem(CLIENT_ID_STORE); } catch {} // senao um client id proprio salvo antes continuaria valendo
+  el.clientidModal.close();
+  login();
+});
+el.clientidForm.addEventListener("submit", e => {
+  e.preventDefault();
+  const v = el.clientidInput.value.trim();
+  if (!v) return clientIdErro("Cole o client id antes de continuar.");
+  if (!CLIENT_ID_FORMATO.test(v)) {
+    return clientIdErro("Esse client id não parece válido: precisa ter 32 caracteres (letras e números), copiados direto do dashboard do Spotify.");
+  }
+  try { localStorage.setItem(CLIENT_ID_STORE, v); } catch {}
+  el.clientidModal.close();
+  login();
+});
+[el.clientidModal, el.errModal].forEach(dialog => {
+  dialog.addEventListener("click", e => {
+    if (e.target === dialog) dialog.close();
+  });
+});
+
+// 403 em /me/player/*: a API de reproducao so funciona com Premium (mesmo
+// so pra ler o que esta tocando), ou a conta nao esta em User Management do
+// app do client id usado. Mostra as ultimas requisicoes que falharam e o
+// checklist em vez de so deslogar sem explicar o motivo.
+function openErrModal() {
+  el.errStack.replaceChildren();
+  requestErrors.forEach(entry => {
+    const li = document.createElement("li");
+    li.textContent = entry;
+    el.errStack.append(li);
+  });
+  if (!el.errModal.open) el.errModal.showModal();
+}
 
 // troca de visualizacao
 setView(localStorage.getItem("view_mode") || "vinil");
@@ -783,7 +884,7 @@ function syncFs() {
   el.fs.setAttribute("aria-label", on ? "Sair da tela cheia" : "Tela cheia");
 }
 el.fs.addEventListener("click", () => {
-  if (document.fullscreenElement) document.exitFullscreen();
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   else document.documentElement.requestFullscreen?.().catch(() => {});
 });
 document.addEventListener("fullscreenchange", syncFs);
@@ -791,7 +892,7 @@ syncFs();
 
 el.cfg.addEventListener("click", () => {
   el.cfgFanart.checked = fanartAtivo;
-  el.cfgModal.showModal();
+  if (!el.cfgModal.open) el.cfgModal.showModal();
 });
 
 el.cfgModal.addEventListener("close", () => {
@@ -820,8 +921,10 @@ document.addEventListener("keydown", e => {
 
 // ---- boot ----
 if (localStorage.getItem("scope_v") !== SCOPE_V) {
-  ["access_token", "refresh_token", "expires_at"].forEach(k => localStorage.removeItem(k));
-  localStorage.setItem("scope_v", SCOPE_V);
+  try {
+    ["access_token", "refresh_token", "expires_at"].forEach(k => localStorage.removeItem(k));
+    localStorage.setItem("scope_v", SCOPE_V);
+  } catch {}
 }
 // cenario da ultima sessao: pinta na hora, pausado, com todos os dados
 try {
@@ -835,7 +938,14 @@ if (snapshot && snapshot.coverUrl && localStorage.getItem("access_token")) {
 (async () => {
   const code = new URLSearchParams(location.search).get("code");
   if (code) {
-    try { await exchange(code); } catch {}
+    try {
+      await exchange(code);
+    } catch {
+      localStorage.removeItem("pkce_verifier");
+      history.replaceState({}, "", REDIRECT);
+      setState("auth", "Não deu para conectar: o código expirou ou já foi usado. Tente de novo.");
+      return;
+    }
     history.replaceState({}, "", REDIRECT);
   }
   if (!localStorage.getItem("access_token")) { setState("auth"); return; }
