@@ -1,4 +1,6 @@
-const CLIENT_ID = "07f8e60ada964056b6600e6f47c00716";
+const CLIENT_ID = "07f8e60ada964056b6600e6f47c00716"; // do Samuel Araag - usado quando o usuario nao tem o proprio
+const CLIENT_ID_STORE = "vp_client_id";
+const clientId = () => localStorage.getItem(CLIENT_ID_STORE) || CLIENT_ID;
 const REDIRECT  = location.origin + location.pathname; // cadastre essa URL exata no dashboard
 const SCOPE     = "user-read-currently-playing user-read-playback-state user-modify-playback-state";
 const SCOPE_V   = "3"; // sobe quando muda o escopo: forca reconexao
@@ -30,6 +32,12 @@ const el = {
   cfg:       $(".cfg"),
   cfgModal:  $(".cfg-modal"),
   cfgFanart: $(".cfg-fanart"),
+  clientidModal:  $(".clientid-modal"),
+  clientidSamuel: $(".clientid-usar-samuel"),
+  clientidForm:   $(".clientid-form"),
+  clientidInput:  $(".clientid-input"),
+  errModal: $(".err-modal"),
+  errStack: $(".err-stack"),
 };
 
 const fmt = ms => {
@@ -326,7 +334,7 @@ async function login() {
   const verifier = rand(64);
   localStorage.setItem("pkce_verifier", verifier);
   const p = new URLSearchParams({
-    client_id: CLIENT_ID, response_type: "code", redirect_uri: REDIRECT,
+    client_id: clientId(), response_type: "code", redirect_uri: REDIRECT,
     scope: SCOPE, code_challenge_method: "S256",
     code_challenge: await challenge(verifier),
   });
@@ -349,17 +357,31 @@ async function tokenRequest(body) {
   localStorage.setItem("expires_at", Date.now() + (t.expires_in ?? 3600) * 1000);
 }
 const exchange = code => tokenRequest({
-  client_id: CLIENT_ID, grant_type: "authorization_code",
+  client_id: clientId(), grant_type: "authorization_code",
   code, redirect_uri: REDIRECT,
   code_verifier: localStorage.getItem("pkce_verifier"),
 });
 const refresh = () => tokenRequest({
-  client_id: CLIENT_ID, grant_type: "refresh_token",
+  client_id: clientId(), grant_type: "refresh_token",
   refresh_token: localStorage.getItem("refresh_token"),
 });
 
 class ApiError extends Error {
   constructor(kind, status) { super(kind); this.kind = kind; this.status = status; }
+}
+
+// pilha das ultimas requisicoes que falharam, mostrada no modal de erro. Le
+// error.message do corpo da resposta - o status sozinho (ex: 403) cobre
+// motivos bem diferentes (sem Premium, fora do User Management, escopo,
+// device), e so o texto que o Spotify manda distingue qual e o caso real.
+const REQ_ERR_MAX = 6;
+let requestErrors = [];
+async function logReqErr(url, r) {
+  const path = url.replace("https://api.spotify.com/v1/", "");
+  let msg = "";
+  try { msg = (await r.clone().json())?.error?.message || ""; } catch {}
+  requestErrors.push(msg ? `${path} · ${r.status} · ${msg}` : `${path} · ${r.status}`);
+  if (requestErrors.length > REQ_ERR_MAX) requestErrors.shift();
 }
 
 // sessao morta: limpa e volta pra tela de conexao com aviso
@@ -398,15 +420,16 @@ async function api(url, opts = {}, retried = false) {
     return api(url, opts, true);
   }
   if (r.status === 204) return null;
-  if (r.status === 404) throw new ApiError("no_device", 404);
-  if (r.status === 403) throw new ApiError("premium", 403);
+  if (r.status === 404) { await logReqErr(url, r); throw new ApiError("no_device", 404); }
+  if (r.status === 403) { await logReqErr(url, r); throw new ApiError("premium", 403); }
   if (r.status === 429) {
+    await logReqErr(url, r);
     const ra = parseInt(r.headers.get("Retry-After") || "", 10);
     const e = new ApiError("rate", 429);
     e.retryAfter = Number.isFinite(ra) ? ra : 0;
     throw e;
   }
-  if (!r.ok) throw new ApiError("http", r.status);
+  if (!r.ok) { await logReqErr(url, r); throw new ApiError("http", r.status); }
   const ct = r.headers.get("content-type") || "";
   return ct.includes("json") ? r.json() : null;
 }
@@ -615,7 +638,8 @@ async function tickOnce() {
       backoffUntil = Date.now() + ((e.retryAfter || 8) * 1000) + 500;
       return;                                         // nao mexe na tela
     }
-    if (e.status === 401 || e.kind === "premium") { forceAuth(); return; }
+    if (e.kind === "premium") { openErrModal(); forceAuth(); return; }
+    if (e.status === 401) { forceAuth(); return; }
     // queda de rede com cenario ja na tela: mantem o que esta ali e avisa
     // discreto, em vez de trocar o album inteiro por uma tela de erro.
     if (el.wrap.dataset.state === "playing") {
@@ -764,8 +788,45 @@ el.prev.addEventListener("click", prev);
 el.next.addEventListener("click", next);
 el.main.addEventListener("click", toggle);
 el.retry.addEventListener("click", () => { setState("loading", "Carregando…"); tick(); });
-el.connectBtn.addEventListener("click", login);
+el.connectBtn.addEventListener("click", openClientIdModal);
 el.disconnect.addEventListener("click", forceAuth);
+
+// pergunta, antes de ir pro Spotify, qual client_id usar: um proprio do
+// usuario (prioritario, input em foco) ou o do Samuel (exige cadastro previo
+// dele em User Management). So o proprio fica salvo (CLIENT_ID_STORE) - usar
+// o do Samuel nao grava nada, o clientId() ja cai nele por padrao.
+function openClientIdModal() {
+  el.clientidInput.value = localStorage.getItem(CLIENT_ID_STORE) || "";
+  el.clientidModal.showModal();
+  el.clientidInput.focus();
+}
+el.clientidSamuel.addEventListener("click", () => {
+  localStorage.removeItem(CLIENT_ID_STORE); // senao um client id proprio salvo antes continuaria valendo
+  el.clientidModal.close();
+  login();
+});
+el.clientidForm.addEventListener("submit", e => {
+  e.preventDefault();
+  const v = el.clientidInput.value.trim();
+  if (!v) return;
+  localStorage.setItem(CLIENT_ID_STORE, v);
+  el.clientidModal.close();
+  login();
+});
+
+// 403 em /me/player/*: a API de reproducao so funciona com Premium (mesmo
+// so pra ler o que esta tocando), ou a conta nao esta em User Management do
+// app do client id usado. Mostra as ultimas requisicoes que falharam e o
+// checklist em vez de so deslogar sem explicar o motivo.
+function openErrModal() {
+  el.errStack.replaceChildren();
+  requestErrors.forEach(entry => {
+    const li = document.createElement("li");
+    li.textContent = entry;
+    el.errStack.append(li);
+  });
+  el.errModal.showModal();
+}
 
 // troca de visualizacao
 setView(localStorage.getItem("view_mode") || "vinil");
