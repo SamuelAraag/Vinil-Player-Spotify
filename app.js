@@ -36,6 +36,7 @@ const el = {
   clientidSamuel: $(".clientid-usar-samuel"),
   clientidForm:   $(".clientid-form"),
   clientidInput:  $(".clientid-input"),
+  clientidErro:   $(".clientid-erro"),
   errModal: $(".err-modal"),
   errStack: $(".err-stack"),
 };
@@ -795,11 +796,24 @@ el.disconnect.addEventListener("click", forceAuth);
 // usuario (prioritario, input em foco) ou o do Samuel (exige cadastro previo
 // dele em User Management). So o proprio fica salvo (CLIENT_ID_STORE) - usar
 // o do Samuel nao grava nada, o clientId() ja cai nele por padrao.
+const CLIENT_ID_FORMATO = /^[0-9a-f]{32}$/i;
+function clientIdErro(msg) {
+  el.clientidInput.setAttribute("aria-invalid", "true");
+  el.clientidErro.textContent = msg;
+  el.clientidErro.hidden = false;
+  el.clientidInput.focus();
+}
 function openClientIdModal() {
   el.clientidInput.value = localStorage.getItem(CLIENT_ID_STORE) || "";
+  el.clientidInput.removeAttribute("aria-invalid");
+  el.clientidErro.hidden = true;
   el.clientidModal.showModal();
   el.clientidInput.focus();
 }
+el.clientidInput.addEventListener("input", () => {
+  el.clientidInput.removeAttribute("aria-invalid");
+  el.clientidErro.hidden = true;
+});
 el.clientidSamuel.addEventListener("click", () => {
   localStorage.removeItem(CLIENT_ID_STORE); // senao um client id proprio salvo antes continuaria valendo
   el.clientidModal.close();
@@ -808,10 +822,18 @@ el.clientidSamuel.addEventListener("click", () => {
 el.clientidForm.addEventListener("submit", e => {
   e.preventDefault();
   const v = el.clientidInput.value.trim();
-  if (!v) return;
+  if (!v) return clientIdErro("Cole o client id antes de continuar.");
+  if (!CLIENT_ID_FORMATO.test(v)) {
+    return clientIdErro("Esse client id não parece válido: precisa ter 32 caracteres (letras e números), copiados direto do dashboard do Spotify.");
+  }
   localStorage.setItem(CLIENT_ID_STORE, v);
   el.clientidModal.close();
   login();
+});
+[el.clientidModal, el.errModal].forEach(dialog => {
+  dialog.addEventListener("click", e => {
+    if (e.target === dialog) dialog.close();
+  });
 });
 
 // 403 em /me/player/*: a API de reproducao so funciona com Premium (mesmo
