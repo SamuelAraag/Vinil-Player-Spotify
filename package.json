@@ -2,6 +2,6 @@
   "name": "vinil-player-spotify",
   "private": true,
   "scripts": {
-    "start": "python3 -m http.server 8080"
+    "app": "python3 -m http.server 8080"
   }
 }

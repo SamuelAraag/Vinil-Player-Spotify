@@ -51,10 +51,10 @@ Spotify Developer Dashboard é exato):
 python3 -m http.server 8080
 ```
 
-Ou, com `npm start` (mesmo comando, só o atalho):
+Ou, com `npm run app` (mesmo comando, só o atalho):
 
 ```
-npm start
+npm run app
 ```
 
 Abre em `http://127.0.0.1:8080/`.
