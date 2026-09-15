@@ -2,7 +2,6 @@ const CLIENT_ID = "07f8e60ada964056b6600e6f47c00716"; // do Samuel Araag - usado
 const CLIENT_ID_STORE = "vp_client_id";
 const clientId = () => localStorage.getItem(CLIENT_ID_STORE) || CLIENT_ID;
 const REDIRECT  = location.origin + location.pathname; // cadastre essa URL exata no dashboard
-const SAMUEL_REDIRECT_OFICIAL = "https://samuelaraag.github.io/Vinil-Player-Spotify/";
 const SCOPE     = "user-read-currently-playing user-read-playback-state user-modify-playback-state";
 const SCOPE_V   = "3"; // sobe quando muda o escopo: forca reconexao
 
