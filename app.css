@@ -23,6 +23,7 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html:has(dialog[open]) { overflow: hidden; }
+html, body { overflow-x: hidden; }
 body {
   margin: 0;
   min-height: 100vh;
@@ -73,7 +74,7 @@ button { font-family: inherit; }
   top: 0; left: 0; right: 0;
   max-width: 1600px;
   margin: 0 auto;
-  padding: 28px clamp(20px, 6vw, 110px) 0;
+  padding: 28px clamp(20px, 6vw, 110px) 20px;
   z-index: 5;
   display: flex;
   justify-content: space-between;
@@ -94,7 +95,7 @@ button { font-family: inherit; }
 }
 .top__artist {
   max-width: 46vw;
-  font: 600 clamp(22px, 6vw, 39px)/1.15 var(--serif);
+  font: 600 clamp(1.375rem, 1.031rem + 1.719vw, 2.75rem)/1.15 var(--serif);
   letter-spacing: 0.01em;
   text-transform: none;
   color: var(--text);
@@ -105,7 +106,7 @@ button { font-family: inherit; }
 .top__artist:empty { display: none; }
 .top__album {
   max-width: 46vw;
-  font: 600 17px/1.2 var(--mono);
+  font: 600 clamp(1rem, 0.875rem + 0.625vw, 1.5rem)/1.2 var(--mono);
   letter-spacing: 0.02em;
   text-transform: none;
   color: var(--text);
@@ -114,15 +115,67 @@ button { font-family: inherit; }
   white-space: nowrap;
 }
 .top__album:empty { display: none; }
+.top__year {
+  font: 500 clamp(0.688rem, 0.656rem + 0.156vw, 0.813rem)/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: none;
+  color: var(--muted);
+}
+.top__year:empty { display: none; }
+.like {
+  display: inline-grid;
+  place-items: center;
+  width: 44px; height: 44px;
+  padding: 0;
+  margin: 4px 0 0 -10px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+.like:hover:not(:disabled) { color: var(--text); }
+.like:active:not(:disabled) { transform: scale(0.88); }
+.like svg { width: 25px; height: 25px; }
+.like[aria-pressed="true"] { color: var(--primary); }
+.like[aria-pressed="true"] svg { fill: currentColor; }
+.like:disabled { opacity: 0.35; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  .like { transition: color 0.2s ease; }
+  .like:active:not(:disabled) { transform: none; }
+}
 /* mobile/telas muito pequenas: o cabecalho empilha e centraliza (artista e
    album, e os icones), em vez de disputar espaco com o lado direito. */
 @media (max-width: 640px) {
-  .top { flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+  .top {
+    flex-direction: column; align-items: center; gap: 14px; text-align: center;
+    background: linear-gradient(to bottom,
+      rgba(0,0,0,0.75) 0%,
+      rgba(0,0,0,0.5) 55%,
+      rgba(0,0,0,0.35) 85%,
+      rgba(0,0,0,0) 100%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    mask-image: linear-gradient(to bottom, black 0%, black 80%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 0%, black 80%, transparent 100%);
+  }
   .top__l { align-items: center; }
   .top__artist, .top__album { max-width: 90vw; }
   /* cabecalho empilhado fica bem mais alto (texto + icones embaixo) -
      reserva mais espaco no topo pra nao cobrir o palco. */
-  .wrap { padding-top: 230px; }
+  .wrap { padding-top: 175px; }
+  .fs::after, .viewtoggle::after, .cfg::after, .like::after { display: none; }
+  button.like {
+    position: fixed;
+    top: 110px;
+    right: clamp(20px, 6vw, 110px);
+    margin: 0;
+    z-index: 6;
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    box-shadow: 0 8px 20px -8px rgba(0,0,0,0.6);
+  }
 }
 .top__r { display: inline-flex; align-items: center; gap: 12px; }
 .fs, .viewtoggle, .cfg {
@@ -320,6 +373,9 @@ button { font-family: inherit; }
 /* tocando: agulha fixa no meio do percurso (nao acompanha mais o progresso da
    faixa). -15deg e a metade entre -6deg (borda) e -24deg (perto do rotulo). */
 .wrap[data-playing="true"] .tonearm { transform: rotate(-15deg); }
+@media (max-width: 640px) {
+  .wrap[data-playing="true"] .tonearm { transform: rotate(-11deg); }
+}
 @media (prefers-reduced-motion: reduce) {
   .tonearm, .wrap[data-playing="false"] .tonearm { transition: none; }
 }
@@ -343,9 +399,9 @@ button { font-family: inherit; }
 .now { text-align: center; margin-top: 8px; }
 .now__title {
   margin: 0;
-  font: 500 clamp(24px, 5vw, 34px)/1.15 var(--serif);
+  font: 500 clamp(1.5rem, 1.219rem + 1.406vw, 2.625rem)/1.15 var(--serif);
   color: var(--text);
-  min-height: calc(1.15 * 24px);
+  min-height: calc(1.15 * 1.5rem);
   text-shadow: 0 2px 14px rgba(0,0,0,0.55);   /* sempre sobre o .bg, nos dois modos */
 }
 

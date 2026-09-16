@@ -2,8 +2,8 @@ const CLIENT_ID = "07f8e60ada964056b6600e6f47c00716"; // do Samuel Araag - usado
 const CLIENT_ID_STORE = "vp_client_id";
 const clientId = () => localStorage.getItem(CLIENT_ID_STORE) || CLIENT_ID;
 const REDIRECT  = location.origin + location.pathname; // cadastre essa URL exata no dashboard
-const SCOPE     = "user-read-currently-playing user-read-playback-state user-modify-playback-state";
-const SCOPE_V   = "3"; // sobe quando muda o escopo: forca reconexao
+const SCOPE     = "user-read-currently-playing user-read-playback-state user-modify-playback-state user-library-read user-library-modify";
+const SCOPE_V   = "4"; // sobe quando muda o escopo: forca reconexao
 
 const $ = s => document.querySelector(s);
 const el = {
@@ -14,6 +14,7 @@ const el = {
   disc:      $(".disc"),
   title:     $(".now__title"),
   topAlbum:  $(".top__album"),
+  topYear:   $(".top__year"),
   topArtist: $(".top__artist"),
   bg:        $(".bg"),
   stage:     $(".stage"),
@@ -22,6 +23,7 @@ const el = {
   prev:      $('[data-act="prev"]'),
   main:      $('[data-act="toggle"]'),
   next:      $('[data-act="next"]'),
+  like:      $('[data-act="like"]'),
   hint:      $(".hint"),
   tracks:    $(".tracks"),
   statusText:$(".status__text"),
@@ -45,26 +47,24 @@ const fmt = ms => {
   const s = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
-// "Nome do album · 1999" - ano vem de release_date (item.album.release_date, ja
-// no retorno de /me/player/currently-playing, sem chamada extra), 4 primeiros
-// caracteres cobrem as 3 precisoes que a API manda (year/month/day).
-const albumLabel = (name, releaseDate) => {
+function setAlbum(name, releaseDate) {
   const year = (releaseDate || "").slice(0, 4);
-  return year ? `${name} · ${year}` : (name || "");
-};
+  if (el.topAlbum.textContent !== (name || "")) el.topAlbum.textContent = name || "";
+  if (el.topYear.textContent !== year) el.topYear.textContent = year;
+}
 
 function setState(s, msg) {
   el.wrap.dataset.state = s;
   const off = s !== "playing";
-  [el.prev, el.main, el.next].forEach(b => (b.disabled = off));
+  [el.prev, el.main, el.next, el.like].forEach(b => (b.disabled = off));
   el.statusText.textContent = msg || "";   // nunca deixa mensagem antiga presa
 }
-function forceAuth() {
+function forceAuth(msg) {
   try {
     ["access_token", "refresh_token", "expires_at", "vp_snapshot"].forEach(k => localStorage.removeItem(k));
   } catch {}
   snapshot = null;
-  setState("auth");
+  setState("auth", msg);
 }
 
 // cenario completo da tela: ultima faixa/album/capa/artista. Sobrevive ao reload
@@ -79,8 +79,7 @@ function renderSnapshot(s) {
   // (now__title), destaque e so a musica.
   if (el.title.textContent !== (s.trackName || "")) el.title.textContent = s.trackName || "";
   if (el.topArtist.textContent !== (s.artistNames || "")) el.topArtist.textContent = s.artistNames || "";
-  const snapAlbumText = albumLabel(s.albumName, s.albumReleaseDate);
-  if (el.topAlbum.textContent !== snapAlbumText) el.topAlbum.textContent = snapAlbumText;
+  setAlbum(s.albumName, s.albumReleaseDate);
   if (el.sleeveImg.dataset.src !== (s.coverUrl || "")) {
     el.sleeveImg.dataset.src = s.coverUrl || "";
     el.sleeveImg.dataset.albumId = s.albumId || "";
@@ -341,7 +340,7 @@ async function login() {
     p = new URLSearchParams({
       client_id: clientId(), response_type: "code", redirect_uri: REDIRECT,
       scope: SCOPE, code_challenge_method: "S256",
-      code_challenge: await challenge(verifier),
+      code_challenge: await challenge(verifier), show_dialog: "true",
     });
   } catch {
     setState("auth", "Não deu para iniciar a conexão: este endereço precisa ser https:// ou localhost.");
@@ -391,6 +390,7 @@ async function logReqErr(url, r) {
   try { msg = (await r.clone().json())?.error?.message || ""; } catch {}
   requestErrors.push(msg ? `${path} · ${r.status} · ${msg}` : `${path} · ${r.status}`);
   if (requestErrors.length > REQ_ERR_MAX) requestErrors.shift();
+  return msg;
 }
 
 // sessao morta: limpa e volta pra tela de conexao com aviso
@@ -431,8 +431,11 @@ async function api(url, opts = {}, retried = false) {
     return api(url, opts, true);
   }
   if (r.status === 204) return null;
-  if (r.status === 404) { await logReqErr(url, r); throw new ApiError("no_device", 404); }
-  if (r.status === 403) { await logReqErr(url, r); throw new ApiError("premium", 403); }
+  if (r.status === 404) { await logReqErr(url, r); throw new ApiError("not_found", 404); }
+  if (r.status === 403) {
+    await logReqErr(url, r);
+    throw new ApiError(url.includes("/me/player/") ? "premium" : "scope", 403);
+  }
   if (r.status === 429) {
     await logReqErr(url, r);
     const ra = parseInt(r.headers.get("Retry-After") || "", 10);
@@ -453,6 +456,43 @@ const ALBUM_RETRY_MS = 30000;   // quanto uma falha de album fica valendo antes 
 // play/pausa otimista: segura o valor ate a API confirmar, sem piscar
 let pending = null; // { value: boolean, until: number }
 let firstTick = true;
+
+let saved = { trackId: null, value: false };
+function reflectSaved() {
+  el.like.setAttribute("aria-pressed", String(saved.value));
+  el.like.setAttribute("aria-label", saved.value ? "Remover das curtidas" : "Curtir");
+}
+async function syncSaved(trackId) {
+  try {
+    const uri = encodeURIComponent("spotify:track:" + trackId);
+    const r = await api("https://api.spotify.com/v1/me/library/contains?uris=" + uri);
+    if (saved.trackId !== trackId) return;
+    saved.value = !!r?.[0];
+    reflectSaved();
+  } catch (e) {
+    if (saved.trackId === trackId) needsReauth(e);
+  }
+}
+let likeBusy = false;
+async function toggleLike() {
+  if (likeBusy) return;
+  const trackId = cur.trackId;
+  if (!trackId || saved.trackId !== trackId) return;
+  const next = !saved.value;
+  likeBusy = true;
+  saved.value = next;
+  reflectSaved();
+  try {
+    const uri = encodeURIComponent("spotify:track:" + trackId);
+    await api("https://api.spotify.com/v1/me/library?uris=" + uri, { method: next ? "PUT" : "DELETE" });
+  } catch (e) {
+    saved.value = !next;
+    reflectSaved();
+    showLikeErr(e);
+  } finally {
+    likeBusy = false;
+  }
+}
 
 function reflectPlaying() {
   el.disc.classList.toggle("is-playing", cur.isPlaying);
@@ -524,12 +564,26 @@ async function loadAlbum(id) {
   return album.tracks;
 }
 
+function needsReauth(e) {
+  if (e?.kind !== "scope") return false;
+  forceAuth("Essa ação pede uma permissão nova. Conecte de novo.");
+  return true;
+}
+
 function showControlErr(e) {
+  if (needsReauth(e)) return;
   el.hint.textContent =
-    e?.kind === "no_device" ? "Abra o Spotify em algum aparelho." :
+    e?.kind === "not_found" ? "Abra o Spotify em algum aparelho." :
     e?.kind === "premium"   ? "Controle exige conta Premium." :
     e?.kind === "rate"      ? "Muitos comandos seguidos, espere um instante." :
                               "Não deu para enviar o comando.";
+}
+
+function showLikeErr(e) {
+  if (needsReauth(e)) return;
+  el.hint.textContent =
+    e?.kind === "rate" ? "Muitos comandos seguidos, espere um instante." :
+                          "Não deu para curtir essa faixa.";
 }
 async function sendControl(fn, okResync = true) {
   el.hint.textContent = "";
@@ -650,6 +704,7 @@ async function tickOnce() {
       return;                                         // nao mexe na tela
     }
     if (e.kind === "premium") { openErrModal(); forceAuth(); return; }
+    if (e.kind === "scope") { forceAuth("Essa versão pede uma permissão nova. Conecte de novo."); return; }
     if (e.status === 401) { forceAuth(); return; }
     // queda de rede com cenario ja na tela: mantem o que esta ali e avisa
     // discreto, em vez de trocar o album inteiro por uma tela de erro.
@@ -684,6 +739,7 @@ async function tickOnce() {
       el.labelImg.dataset.src = "";
       if (el.title.textContent !== "Nada tocando agora") el.title.textContent = "Nada tocando agora";
       el.topAlbum.textContent = "";
+      el.topYear.textContent = "";
       el.topArtist.textContent = "";
       setBg("");
       setArtistPhoto("");
@@ -712,8 +768,7 @@ async function tickOnce() {
   // (now__title), destaque e so a musica.
   if (el.title.textContent !== it.name) el.title.textContent = it.name;
   if (el.topArtist.textContent !== names) el.topArtist.textContent = names;
-  const albumText = albumLabel(albumName, albumReleaseDate);
-  if (el.topAlbum.textContent !== albumText) el.topAlbum.textContent = albumText;
+  setAlbum(albumName, albumReleaseDate);
   setBg(img);
   const artistId = it.artists?.[0]?.id || "";
   const artistName = it.artists?.[0]?.name || "";
@@ -750,6 +805,12 @@ async function tickOnce() {
   };
   reflectPlaying();
   setState("playing");
+
+  if (saved.trackId !== it.id) {
+    saved = { trackId: it.id, value: false };
+    reflectSaved();
+    syncSaved(it.id);
+  }
 
   buscarImagensDoArtista(artistId, artistName);
 
@@ -798,9 +859,10 @@ async function tickOnce() {
 el.prev.addEventListener("click", prev);
 el.next.addEventListener("click", next);
 el.main.addEventListener("click", toggle);
+el.like.addEventListener("click", toggleLike);
 el.retry.addEventListener("click", () => { setState("loading", "Carregando…"); tick(); });
 el.connectBtn.addEventListener("click", openClientIdModal);
-el.disconnect.addEventListener("click", forceAuth);
+el.disconnect.addEventListener("click", () => forceAuth());
 
 // pergunta, antes de ir pro Spotify, qual client_id usar: um proprio do
 // usuario (prioritario, input em foco) ou o do Samuel (exige cadastro previo
