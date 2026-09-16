@@ -374,7 +374,7 @@ button { font-family: inherit; }
    faixa). -15deg e a metade entre -6deg (borda) e -24deg (perto do rotulo). */
 .wrap[data-playing="true"] .tonearm { transform: rotate(-15deg); }
 @media (max-width: 640px) {
-  .wrap[data-playing="true"] .tonearm { transform: rotate(349deg); }
+  .wrap[data-playing="true"] .tonearm { transform: rotate(-11deg); }
 }
 @media (prefers-reduced-motion: reduce) {
   .tonearm, .wrap[data-playing="false"] .tonearm { transition: none; }
