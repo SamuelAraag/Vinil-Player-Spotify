@@ -23,6 +23,7 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html:has(dialog[open]) { overflow: hidden; }
+html, body { overflow-x: hidden; }
 body {
   margin: 0;
   min-height: 100vh;
@@ -163,7 +164,7 @@ button { font-family: inherit; }
   /* cabecalho empilhado fica bem mais alto (texto + icones embaixo) -
      reserva mais espaco no topo pra nao cobrir o palco. */
   .wrap { padding-top: 175px; }
-  .fs::after, .viewtoggle::after, .cfg::after { display: none; }
+  .fs::after, .viewtoggle::after, .cfg::after, .like::after { display: none; }
   /* fixo no quase-topo, alcancavel com uma mao so - sai do fluxo de .top__l
      (que fecha o espaco sozinho) e ganha fundo/borda como os demais icones
      fixos da tela (.fs/.viewtoggle/.cfg), pra nao depender do que estiver
@@ -378,6 +379,9 @@ button { font-family: inherit; }
 /* tocando: agulha fixa no meio do percurso (nao acompanha mais o progresso da
    faixa). -15deg e a metade entre -6deg (borda) e -24deg (perto do rotulo). */
 .wrap[data-playing="true"] .tonearm { transform: rotate(-15deg); }
+@media (max-width: 640px) {
+  .wrap[data-playing="true"] .tonearm { transform: rotate(349deg); }
+}
 @media (prefers-reduced-motion: reduce) {
   .tonearm, .wrap[data-playing="false"] .tonearm { transition: none; }
 }
