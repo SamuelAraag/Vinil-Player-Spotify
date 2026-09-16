@@ -165,12 +165,6 @@ button { font-family: inherit; }
      reserva mais espaco no topo pra nao cobrir o palco. */
   .wrap { padding-top: 175px; }
   .fs::after, .viewtoggle::after, .cfg::after, .like::after { display: none; }
-  /* fixo no quase-topo, alcancavel com uma mao so - sai do fluxo de .top__l
-     (que fecha o espaco sozinho) e ganha fundo/borda como os demais icones
-     fixos da tela (.fs/.viewtoggle/.cfg), pra nao depender do que estiver
-     atras. Alinhado ao mesmo respiro lateral do conteudo (.wrap), nao a
-     borda crua da tela, pra nao coincidir com a duracao das faixas (.trk__d)
-     quando a lista rolar por baixo. */
   button.like {
     position: fixed;
     top: 110px;
