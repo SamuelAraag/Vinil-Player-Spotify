@@ -1,0 +1,185 @@
+{
+  "info": {
+    "name": "Vinil Player Spotify",
+    "description": "Endpoints usados por app.js: autenticação PKCE, controle de reprodução, álbum/artista, curtidas e as fontes auxiliares de imagem do artista (MusicBrainz + fanart.tv).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "accounts_url", "value": "https://accounts.spotify.com" },
+    { "key": "base_url", "value": "https://api.spotify.com/v1" },
+    { "key": "client_id", "value": "07f8e60ada964056b6600e6f47c00716" },
+    { "key": "redirect_uri", "value": "http://127.0.0.1:8080/" },
+    { "key": "scope", "value": "user-read-currently-playing user-read-playback-state user-modify-playback-state user-library-read user-library-modify" },
+    { "key": "code_verifier", "value": "" },
+    { "key": "code_challenge", "value": "" },
+    { "key": "code", "value": "" },
+    { "key": "access_token", "value": "" },
+    { "key": "refresh_token", "value": "" },
+    { "key": "track_id", "value": "" },
+    { "key": "album_id", "value": "" },
+    { "key": "artist_id", "value": "" },
+    { "key": "artist_name", "value": "" },
+    { "key": "mbid", "value": "" },
+    { "key": "fanart_api_key", "value": "10ecb43d661dad793e6b0fb409dc65b7" }
+  ],
+  "item": [
+    {
+      "name": "Autenticação (PKCE)",
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Autorizar (abrir no navegador, não enviar aqui)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{accounts_url}}/authorize?client_id={{client_id}}&response_type=code&redirect_uri={{redirect_uri}}&scope={{scope}}&code_challenge_method=S256&code_challenge={{code_challenge}}",
+              "host": ["{{accounts_url}}"],
+              "path": ["authorize"],
+              "query": [
+                { "key": "client_id", "value": "{{client_id}}" },
+                { "key": "response_type", "value": "code" },
+                { "key": "redirect_uri", "value": "{{redirect_uri}}" },
+                { "key": "scope", "value": "{{scope}}" },
+                { "key": "code_challenge_method", "value": "S256" },
+                { "key": "code_challenge", "value": "{{code_challenge}}" }
+              ]
+            },
+            "description": "Passo do PKCE que só funciona em navegador (mostra a tela de login/consentimento do Spotify e redireciona de volta com ?code=). Postman não segue esse fluxo — copie o code da URL de retorno e cole na variável {{code}}."
+          }
+        },
+        {
+          "name": "Trocar code por token",
+          "request": {
+            "method": "POST",
+            "url": "{{accounts_url}}/api/token",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "client_id", "value": "{{client_id}}" },
+                { "key": "grant_type", "value": "authorization_code" },
+                { "key": "code", "value": "{{code}}" },
+                { "key": "redirect_uri", "value": "{{redirect_uri}}" },
+                { "key": "code_verifier", "value": "{{code_verifier}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Renovar com refresh_token",
+          "request": {
+            "method": "POST",
+            "url": "{{accounts_url}}/api/token",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "client_id", "value": "{{client_id}}" },
+                { "key": "grant_type", "value": "refresh_token" },
+                { "key": "refresh_token", "value": "{{refresh_token}}" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Player",
+      "item": [
+        {
+          "name": "Tocando agora",
+          "request": { "method": "GET", "url": "{{base_url}}/me/player/currently-playing" }
+        },
+        {
+          "name": "Tocar",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/me/player/play",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"context_uri\": \"spotify:album:{{album_id}}\",\n  \"offset\": { \"position\": 0 }\n}"
+            }
+          }
+        },
+        {
+          "name": "Pausar",
+          "request": { "method": "PUT", "url": "{{base_url}}/me/player/pause" }
+        },
+        {
+          "name": "Próxima faixa",
+          "request": { "method": "POST", "url": "{{base_url}}/me/player/next" }
+        },
+        {
+          "name": "Faixa anterior",
+          "request": { "method": "POST", "url": "{{base_url}}/me/player/previous" }
+        }
+      ]
+    },
+    {
+      "name": "Álbum e artista",
+      "item": [
+        {
+          "name": "Álbum",
+          "request": { "method": "GET", "url": "{{base_url}}/albums/{{album_id}}?limit=50" }
+        },
+        {
+          "name": "Artista",
+          "request": { "method": "GET", "url": "{{base_url}}/artists/{{artist_id}}" }
+        }
+      ]
+    },
+    {
+      "name": "Curtidas",
+      "item": [
+        {
+          "name": "Checar se a faixa está curtida",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/me/library/contains?uris=spotify:track:{{track_id}}",
+            "description": "Endpoint novo pós-migração de fev/2026. O antigo /me/tracks/contains?ids= foi descontinuado pra apps em Development Mode e devolve 403 Forbidden."
+          }
+        },
+        {
+          "name": "Curtir",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/me/library?uris=spotify:track:{{track_id}}",
+            "description": "uris vai na query string, não no corpo — um body JSON com {\"uris\": [...]} devolve 400 'Missing required field: uris'."
+          }
+        },
+        {
+          "name": "Remover curtida",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/me/library?uris=spotify:track:{{track_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auxiliares (fanart)",
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "MusicBrainz: mbid do artista",
+          "request": {
+            "method": "GET",
+            "url": "https://musicbrainz.org/ws/2/artist/?fmt=json&limit=1&query={{artist_name}}"
+          }
+        },
+        {
+          "name": "fanart.tv: imagens do artista",
+          "request": {
+            "method": "GET",
+            "url": "https://webservice.fanart.tv/v3/music/{{mbid}}?api_key={{fanart_api_key}}"
+          }
+        }
+      ]
+    }
+  ]
+}
