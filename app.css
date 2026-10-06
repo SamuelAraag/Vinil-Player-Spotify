@@ -276,7 +276,12 @@ button { font-family: inherit; }
 .disc {
   position: absolute; inset: 0;
   border-radius: 50%;
+  /* foto do disco por cima; os gradientes ficam de reserva enquanto ela carrega.
+     A foto tem 256px e o disco ocupa so 234x232 no meio dela: o 110%/111%
+     amplia ate a borda do vinil encostar na borda do circulo (e desfaz o leve
+     achatamento), cortando a margem transparente. */
   background:
+    url("vinil.png") center / 110% 111% no-repeat,
     repeating-radial-gradient(circle at 50% 50%,
       transparent 0 calc(var(--groove-pitch) - 1px),
       var(--vinyl-groove) calc(var(--groove-pitch) - 1px) var(--groove-pitch)),
@@ -293,7 +298,8 @@ button { font-family: inherit; }
   .disc.is-playing { animation: none; }
 }
 .disc__label {
-  position: absolute; inset: 30%;
+  /* 34% do diametro: cobre o rotulo branco da foto (32%, e 2px fora do centro) */
+  position: absolute; inset: 33%;
   border-radius: 50%;
   background: var(--primary);
   overflow: hidden;
