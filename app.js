@@ -36,7 +36,17 @@ const el = {
   cfgFanart: $(".cfg-fanart"),
   clientidModal:  $(".clientid-modal"),
   clientidSamuel: $(".clientid-usar-samuel"),
-  clientidForm:   $(".clientid-form"),
+  clientidEscolha:$(".clientid-escolha"),
+  clientidCriar:  $(".clientid-criar"),
+  clientidTenho:  $(".clientid-tenho"),
+  clientidForm:   $(".clientid-guia"),
+  clientidTrilho: [...document.querySelectorAll(".clientid-trilho i")],
+  clientidContador: $(".clientid-contador"),
+  clientidPaginas:$(".clientid-paginas"),
+  clientidUri:    $(".clientid-uri__url"),
+  clientidCopiar: $(".clientid-copiar"),
+  clientidVoltar: $(".clientid-voltar"),
+  clientidProximo:$(".clientid-proximo"),
   clientidInput:  $(".clientid-input"),
   clientidErro:   $(".clientid-erro"),
   errModal: $(".err-modal"),
@@ -865,7 +875,7 @@ el.connectBtn.addEventListener("click", openClientIdModal);
 el.disconnect.addEventListener("click", () => forceAuth());
 
 // pergunta, antes de ir pro Spotify, qual client_id usar: um proprio do
-// usuario (prioritario, input em foco) ou o do Samuel (exige cadastro previo
+// usuario (criado pelo guia ou ja existente) ou o do Samuel (exige cadastro previo
 // dele em User Management). So o proprio fica salvo (CLIENT_ID_STORE) - usar
 // o do Samuel nao grava nada, o clientId() ja cai nele por padrao.
 const CLIENT_ID_FORMATO = /^[0-9a-f]{32}$/i;
@@ -887,9 +897,53 @@ function openClientIdModal() {
   el.clientidInput.value = localStorage.getItem(CLIENT_ID_STORE) || "";
   el.clientidInput.removeAttribute("aria-invalid");
   el.clientidErro.hidden = true;
+  mostrarEscolha();
   if (!el.clientidModal.open) el.clientidModal.showModal();
-  el.clientidInput.focus();
+  el.clientidCriar.focus();
 }
+
+// guia em 4 passos: o ultimo tem o input, os outros so explicam o dashboard.
+// "ja tenho um client id" entra direto no ultimo.
+const PASSOS = el.clientidTrilho.length;
+let passo = 0;
+el.clientidUri.textContent = REDIRECT;
+function mostrarEscolha() {
+  el.clientidForm.hidden = true;
+  el.clientidEscolha.hidden = false;
+}
+function irParaPasso(n) {
+  passo = n;
+  el.clientidEscolha.hidden = true;
+  el.clientidForm.hidden = false;
+  el.clientidPaginas.style.transform = `translateX(${-100 * n}%)`;
+  [...el.clientidPaginas.children].forEach((p, i) => (p.inert = i !== n));
+  el.clientidTrilho.forEach((t, i) => t.classList.toggle("feito", i <= n));
+  el.clientidContador.textContent = `passo ${n + 1} de ${PASSOS}`;
+  el.clientidProximo.textContent = n === PASSOS - 1 ? "salvar e conectar" : "próximo";
+  if (n === PASSOS - 1) el.clientidInput.focus({ preventScroll: true });
+  else el.clientidProximo.focus();
+}
+el.clientidCriar.addEventListener("click", () => irParaPasso(0));
+el.clientidTenho.addEventListener("click", () => irParaPasso(PASSOS - 1));
+el.clientidVoltar.addEventListener("click", () => {
+  if (passo > 0) return irParaPasso(passo - 1);
+  mostrarEscolha();
+  el.clientidCriar.focus();
+});
+el.clientidCopiar.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(REDIRECT);
+    el.clientidCopiar.textContent = "copiado";
+    el.clientidCopiar.classList.add("ok");
+  } catch {
+    getSelection().selectAllChildren(el.clientidUri); // sem permissao de clipboard: deixa selecionado pra copiar na mao
+    el.clientidCopiar.textContent = "selecionado";
+  }
+  setTimeout(() => {
+    el.clientidCopiar.textContent = "copiar";
+    el.clientidCopiar.classList.remove("ok");
+  }, 1600);
+});
 el.clientidInput.addEventListener("input", () => {
   el.clientidInput.removeAttribute("aria-invalid");
   el.clientidErro.hidden = true;
@@ -901,6 +955,7 @@ el.clientidSamuel.addEventListener("click", () => {
 });
 el.clientidForm.addEventListener("submit", e => {
   e.preventDefault();
+  if (passo < PASSOS - 1) return irParaPasso(passo + 1);
   const v = el.clientidInput.value.trim();
   if (!v) return clientIdErro("Cole o client id antes de continuar.");
   if (!CLIENT_ID_FORMATO.test(v)) {
