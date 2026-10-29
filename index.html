@@ -107,19 +107,63 @@
 <dialog class="clientid-modal" aria-labelledby="clientid-titulo">
   <h2 class="clientid-modal__titulo" id="clientid-titulo">conectar ao spotify</h2>
 
-  <form class="clientid-form">
-    <label class="clientid-label" for="clientid-input">client id do seu app no spotify</label>
-    <input type="text" id="clientid-input" class="clientid-input" autocomplete="off" spellcheck="false"
-      placeholder="ex.: 0000aaaa1111bbbb2222cccc3333dddd">
-    <small class="clientid-erro" role="alert" hidden>Cole o client id antes de continuar.</small>
-    <button type="submit" class="btn primary clientid-salvar">salvar e conectar</button>
-  </form>
+  <div class="clientid-escolha">
+    <button type="button" class="btn primary clientid-criar">criar meu client id</button>
+    <button type="button" class="btn clientid-tenho">j&aacute; tenho um client id</button>
 
-  <button type="button" class="btn clientid-usar-samuel">J&aacute; tenho cadastro com Samuel Araag</button>
-  <small class="clientid-aviso">S&oacute; funciona se o e-mail da sua conta Spotify j&aacute; estiver
-  cadastrado por ele no app.</small>
-  <small class="clientid-aviso">A vers&atilde;o oficial est&aacute; em
-  <a href="https://samuelaraag.github.io/Vinil-Player-Spotify/" target="_blank" rel="noopener noreferrer">samuelaraag.github.io/Vinil-Player-Spotify</a></small>
+    <button type="button" class="btn clientid-usar-samuel">J&aacute; tenho cadastro com Samuel Araag</button>
+    <small class="clientid-aviso">S&oacute; funciona se o e-mail da sua conta Spotify j&aacute; estiver
+    cadastrado por ele no app.</small>
+    <small class="clientid-aviso">A vers&atilde;o oficial est&aacute; em
+    <a href="https://samuelaraag.github.io/Vinil-Player-Spotify/" target="_blank" rel="noopener noreferrer">samuelaraag.github.io/Vinil-Player-Spotify</a></small>
+  </div>
+
+  <form class="clientid-guia" hidden>
+    <div class="clientid-trilho" aria-hidden="true"></div>
+    <p class="clientid-contador" aria-live="polite"></p>
+
+    <div class="clientid-janela">
+      <div class="clientid-paginas">
+        <section class="clientid-pagina">
+          <h3>Entre no dashboard do Spotify</h3>
+          <p>Abra <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer">developer.spotify.com/dashboard</a>
+          e entre com a <strong>mesma conta</strong> que voc&ecirc; usa para ouvir m&uacute;sica. Ela precisa ser <strong>Premium</strong>.</p>
+        </section>
+        <section class="clientid-pagina">
+          <h3>Crie um app</h3>
+          <p>Clique em <strong>Create app</strong>. Nome e descri&ccedil;&atilde;o podem ser qualquer coisa, como &quot;VinilPlayer&quot;.</p>
+          <p>Em <strong>Redirect URIs</strong>, cole este endere&ccedil;o:</p>
+          <div class="clientid-uri">
+            <code class="clientid-uri__url"></code>
+            <button type="button" class="clientid-copiar">copiar</button>
+          </div>
+          <small class="clientid-aviso clientid-localhost" hidden>O Spotify n&atilde;o aceita <code>localhost</code>.
+          Abra esta p&aacute;gina por <code>127.0.0.1</code> antes de cadastrar.</small>
+          <p>Marque <strong>Web API</strong>, aceite os termos e salve.</p>
+        </section>
+        <section class="clientid-pagina">
+          <h3>Copie o Client ID</h3>
+          <p>No app que voc&ecirc; criou, abra <strong>Settings</strong>. O <strong>Client ID</strong> &eacute; um
+          c&oacute;digo de 32 letras e n&uacute;meros. Copie ele.</p>
+          <p>N&atilde;o precisa do Client secret.</p>
+        </section>
+        <section class="clientid-pagina">
+          <h3>Cole aqui</h3>
+          <label class="clientid-label" for="clientid-input">client id do seu app no spotify</label>
+          <input type="text" id="clientid-input" class="clientid-input" autocomplete="off" spellcheck="false"
+            placeholder="ex.: 0000aaaa1111bbbb2222cccc3333dddd">
+          <small class="clientid-erro" role="alert" hidden>Cole o client id antes de continuar.</small>
+          <small class="clientid-aviso">Como o app &eacute; seu, sua conta j&aacute; tem acesso. N&atilde;o precisa
+          cadastrar e-mail.</small>
+        </section>
+      </div>
+    </div>
+
+    <div class="clientid-navega">
+      <button type="button" class="btn clientid-voltar">voltar</button>
+      <button type="submit" class="btn primary clientid-proximo">pr&oacute;ximo</button>
+    </div>
+  </form>
 </dialog>
 
 <dialog class="err-modal" aria-labelledby="err-titulo">

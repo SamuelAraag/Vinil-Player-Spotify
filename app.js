@@ -36,7 +36,19 @@ const el = {
   cfgFanart: $(".cfg-fanart"),
   clientidModal:  $(".clientid-modal"),
   clientidSamuel: $(".clientid-usar-samuel"),
-  clientidForm:   $(".clientid-form"),
+  clientidEscolha:$(".clientid-escolha"),
+  clientidCriar:  $(".clientid-criar"),
+  clientidTenho:  $(".clientid-tenho"),
+  clientidForm:   $(".clientid-guia"),
+  clientidTrilho: $(".clientid-trilho"),
+  clientidJanela: $(".clientid-janela"),
+  clientidLocalhost: $(".clientid-localhost"),
+  clientidContador: $(".clientid-contador"),
+  clientidPaginas:$(".clientid-paginas"),
+  clientidUri:    $(".clientid-uri__url"),
+  clientidCopiar: $(".clientid-copiar"),
+  clientidVoltar: $(".clientid-voltar"),
+  clientidProximo:$(".clientid-proximo"),
   clientidInput:  $(".clientid-input"),
   clientidErro:   $(".clientid-erro"),
   errModal: $(".err-modal"),
@@ -343,7 +355,7 @@ async function login() {
       code_challenge: await challenge(verifier), show_dialog: "true",
     });
   } catch {
-    setState("auth", "Não deu para iniciar a conexão: este endereço precisa ser https:// ou localhost.");
+    setState("auth", "Não deu para iniciar a conexão: este endereço precisa ser https:// ou 127.0.0.1.");
     return;
   }
   location.href = "https://accounts.spotify.com/authorize?" + p;
@@ -865,7 +877,7 @@ el.connectBtn.addEventListener("click", openClientIdModal);
 el.disconnect.addEventListener("click", () => forceAuth());
 
 // pergunta, antes de ir pro Spotify, qual client_id usar: um proprio do
-// usuario (prioritario, input em foco) ou o do Samuel (exige cadastro previo
+// usuario (criado pelo guia ou ja existente) ou o do Samuel (exige cadastro previo
 // dele em User Management). So o proprio fica salvo (CLIENT_ID_STORE) - usar
 // o do Samuel nao grava nada, o clientId() ja cai nele por padrao.
 const CLIENT_ID_FORMATO = /^[0-9a-f]{32}$/i;
@@ -881,15 +893,68 @@ function clientIdErro(msg, url) {
     el.clientidErro.append(a);
   }
   el.clientidErro.hidden = false;
-  el.clientidInput.focus();
+  el.clientidInput.focus({ preventScroll: true });
 }
 function openClientIdModal() {
-  el.clientidInput.value = localStorage.getItem(CLIENT_ID_STORE) || "";
+  let salvo = "";
+  try { salvo = localStorage.getItem(CLIENT_ID_STORE) || ""; } catch {}
+  el.clientidInput.value = salvo;
   el.clientidInput.removeAttribute("aria-invalid");
   el.clientidErro.hidden = true;
   if (!el.clientidModal.open) el.clientidModal.showModal();
-  el.clientidInput.focus();
+  if (salvo) irParaPasso(PASSOS - 1, true);
+  else mostrarEscolha();
 }
+
+const PASSOS = el.clientidPaginas.children.length;
+const trilho = Array.from({ length: PASSOS }, () => document.createElement("i"));
+el.clientidTrilho.append(...trilho);
+el.clientidUri.textContent = REDIRECT;
+el.clientidLocalhost.hidden = location.hostname !== "localhost";
+let passo = 0;
+let atalho = false;
+let copiarTimer;
+function mostrarEscolha() {
+  el.clientidForm.hidden = true;
+  el.clientidEscolha.hidden = false;
+  el.clientidCriar.focus();
+}
+function irParaPasso(n, direto = atalho) {
+  passo = n;
+  atalho = direto;
+  el.clientidEscolha.hidden = true;
+  el.clientidForm.hidden = false;
+  el.clientidForm.classList.toggle("atalho", atalho);
+  el.clientidJanela.scrollLeft = 0;
+  el.clientidPaginas.style.transform = `translateX(${-100 * n}%)`;
+  [...el.clientidPaginas.children].forEach((p, i) => (p.inert = i !== n));
+  trilho.forEach((t, i) => t.classList.toggle("feito", i <= n));
+  el.clientidContador.textContent = `passo ${n + 1} de ${PASSOS}`;
+  el.clientidProximo.textContent = n === PASSOS - 1 ? "salvar e conectar" : "próximo";
+  if (n === PASSOS - 1) el.clientidInput.focus({ preventScroll: true });
+  else el.clientidProximo.focus();
+}
+el.clientidCriar.addEventListener("click", () => irParaPasso(0, false));
+el.clientidTenho.addEventListener("click", () => irParaPasso(PASSOS - 1, true));
+el.clientidVoltar.addEventListener("click", () => {
+  if (passo > 0 && !atalho) return irParaPasso(passo - 1);
+  mostrarEscolha();
+});
+el.clientidCopiar.addEventListener("click", async () => {
+  clearTimeout(copiarTimer);
+  try {
+    await navigator.clipboard.writeText(REDIRECT);
+    el.clientidCopiar.textContent = "copiado";
+    el.clientidCopiar.classList.add("ok");
+  } catch {
+    getSelection().selectAllChildren(el.clientidUri);
+    el.clientidCopiar.textContent = "selecionado";
+  }
+  copiarTimer = setTimeout(() => {
+    el.clientidCopiar.textContent = "copiar";
+    el.clientidCopiar.classList.remove("ok");
+  }, 1600);
+});
 el.clientidInput.addEventListener("input", () => {
   el.clientidInput.removeAttribute("aria-invalid");
   el.clientidErro.hidden = true;
@@ -901,6 +966,7 @@ el.clientidSamuel.addEventListener("click", () => {
 });
 el.clientidForm.addEventListener("submit", e => {
   e.preventDefault();
+  if (passo < PASSOS - 1) return irParaPasso(passo + 1);
   const v = el.clientidInput.value.trim();
   if (!v) return clientIdErro("Cole o client id antes de continuar.");
   if (!CLIENT_ID_FORMATO.test(v)) {
